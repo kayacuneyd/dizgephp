@@ -1,0 +1,22 @@
+# DizgePHP project memory
+
+- 2026-07-22: Project root is `/var/www/dizgephp`; public web root is `public/`.
+- 2026-07-22: PHP target is 8.1+; the core has no Composer or runtime dependency.
+- 2026-07-22: Core routing is explicit in `routes/web.php`; file-based routing is future opt-in.
+- 2026-07-22: `dizge.php` exposes `app()`, `view()`, `e()`, `dv()`, `dv_scripts()` and `dv_path()`.
+- 2026-07-22: The PDO data boundary is `db()` / `Database`; it requires `DIZGE_DB_DSN` and defaults to PDO exception mode, associative fetches and native prepared statements.
+- 2026-07-22: `Query` validates identifiers and order directions, binds values and rejects unconditional update/delete; migrations are explicit `Migration` objects run with `bin/migrate`.
+- 2026-07-22: Browser sessions use strict native PHP sessions; CSRF runs globally for state-changing routes, while `RequireAuth` and `gate()` policies make protected-route ownership explicit.
+- 2026-07-22: Run `bin/verify` for PHP syntax, core/security/data behavior checks and `bin/benchmark` for router/query baselines.
+- 2026-07-22: Production is live at `https://dizgephp.digitaltamam.com`; Nginx serves `/var/www/dizgephp/public` via `/etc/nginx/sites-available/dizgephp.digitaltamam.com` and PHP 8.1-FPM.
+- 2026-07-22: Run `bin/publish-assets` before deployment. It publishes the local bridge and pinned DevinimJS counter assets; use `DEVINIM_DIST=/path/to/devinim/dist` when the sibling checkout is elsewhere.
+- 2026-07-22: The Let’s Encrypt certificate for `dizgephp.digitaltamam.com` is active through 2026-10-20 and is managed by Certbot’s scheduled renewal.
+- 2026-07-22: DizgeCMS Studio is the workflow-first reference application at `/demo`; it defaults to `storage/app.sqlite`, which is owned by `www-data:www-data` with no public-web access on this VPS.
+- 2026-07-22: Initialize CMS storage with `bin/migrate up`, create the sole admin with `DIZGE_ADMIN_PASSWORD='...' bin/cms-admin create admin@example.com`, then run `bin/publish-assets` after asset changes. No admin account is seeded in source control.
+- 2026-07-22: Public CMS routes, auth/CSRF workflow, sanitizer boundary, desktop/mobile rich-editor hydration and HTTPS deployment were verified. Sitemap, canonical URLs and `robots.txt` are present; advanced SEO automation remains deferred.
+- 2026-07-22: CMS publishing features add FTS5 public search/context retrieval, slug redirects, `/demo/sitemap.xml`, `/robots.txt`, revision restore and private media at `storage/media/`; see `docs/media-threat-model.md` before extending uploads or retrieval.
+- 2026-07-22: `bin/cms-backup` runs daily through `/etc/cron.d/dizgephp-backup`, retains 14 SQLite snapshots under `storage/backups/`, and `bin/cms-restore <snapshot> --force` is maintenance-window only.
+- 2026-07-22: Deferred DizgeCMS Studio work is prioritized in `docs/dizgecms-studio-backlog.md`; resume from role-focused Studio UX, then media experience.
+- 2026-07-22: Full-stack foundation uses explicit web/API route files, explicitly-bound controllers and a no-autowiring container; `bin/dizge inspect --json` is the machine-readable agent context contract.
+- 2026-07-22: Official build-free modules are filesystem cache, cron-backed file queue, mail transports and scoped bearer tokens. Their security contracts are in `docs/api-threat-model.md` and `docs/operations-threat-model.md`.
+- 2026-07-22: The VPS runs `/etc/cron.d/dizgephp-jobs` once per minute as `www-data`, processing up to 25 file-queue jobs and logging to `storage/logs/jobs-cron.log`.

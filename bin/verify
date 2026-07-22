@@ -1,0 +1,14 @@
+#!/usr/bin/env sh
+set -eu
+
+find . -path ./vendor -prune -o -name '*.php' -type f -print | while IFS= read -r file; do
+  php -l "$file" >/dev/null
+done
+php tests/core_test.php
+php tests/security_test.php
+php tests/data_test.php
+php tests/auth_test.php
+php tests/validation_rate_test.php
+php tests/login_test.php
+php tests/cms_test.php
+php tests/fullstack_test.php

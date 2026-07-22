@@ -1,0 +1,19 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+$root = dirname(__DIR__);
+$source = $root . '/storage/app.sqlite';
+$directory = $root . '/storage/backups';
+if (!is_file($source)) throw new RuntimeException('SQLite database was not found. Run migrations first.');
+if (!is_dir($directory) && !mkdir($directory, 0700, true) && !is_dir($directory)) throw new RuntimeException('Cannot create backup directory.');
+$target = $directory . '/dizgecms-' . gmdate('Ymd-His') . '.sqlite';
+$from = new SQLite3($source, SQLITE3_OPEN_READONLY);
+$to = new SQLite3($target, SQLITE3_OPEN_READWRITE | SQLITE3_OPEN_CREATE);
+if (!$from->backup($to)) throw new RuntimeException('SQLite backup failed.');
+$from->close(); $to->close(); chmod($target, 0600);
+$backups = glob($directory . '/dizgecms-*.sqlite') ?: [];
+rsort($backups, SORT_STRING);
+foreach (array_slice($backups, 14) as $old) unlink($old);
+echo $target . "\n";

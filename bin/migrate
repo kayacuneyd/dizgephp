@@ -1,0 +1,19 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require dirname(__DIR__) . '/dizge.php';
+
+use Dizge\Data\Migrator;
+
+$migrator = new Migrator(db());
+$migrations = Migrator::load(dirname(__DIR__) . '/database/migrations');
+$action = $argv[1] ?? 'up';
+$ids = match ($action) {
+    'up' => $migrator->migrate($migrations),
+    'down' => $migrator->rollback($migrations),
+    default => throw new InvalidArgumentException('Usage: bin/migrate [up|down]'),
+};
+
+echo $ids === [] ? "No migrations to run.\n" : implode("\n", $ids) . "\n";

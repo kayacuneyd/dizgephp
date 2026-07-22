@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+devinim_dist="${DEVINIM_DIST:-/var/www/devinimjs/dist}"
+public_assets="$project_root/public/assets"
+
+test -f "$devinim_dist/authoring.min.js"
+test -f "$devinim_dist/modules/dv-counter.js"
+test -f /var/www/ckcss/site/assets/ckcss.min.css
+
+install -d "$public_assets/devinim/modules" "$public_assets/demo"
+install -m 0644 "$project_root/assets/dizge-bridge.js" "$public_assets/dizge-bridge.js"
+install -m 0644 "$project_root/assets/dv-rich-editor.js" "$public_assets/demo/dv-rich-editor.js"
+install -m 0644 "$project_root/assets/dizgecms.css" "$public_assets/dizgecms.css"
+install -m 0644 "$project_root/assets/dizgecms-mark.svg" "$public_assets/dizgecms-mark.svg"
+install -m 0644 /var/www/ckcss/site/assets/ckcss.min.css "$public_assets/ckcss.min.css"
+install -m 0644 "$devinim_dist/authoring.min.js" "$public_assets/devinim/authoring.min.js"
+install -m 0644 "$devinim_dist/modules/dv-counter.js" "$public_assets/devinim/modules/dv-counter.js"
+
+printf 'Published DizgeCMS, CKCSS and DevinimJS assets.\n'

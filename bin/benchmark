@@ -1,0 +1,12 @@
+#!/usr/bin/env sh
+set -eu
+
+if [ "${1:-}" = "--check" ]; then
+  php bench/check.php
+  exit 0
+fi
+
+php bench/router.php
+php bench/query.php
+php bench/auth.php
+php bench/fullstack.php

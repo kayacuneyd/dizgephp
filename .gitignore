@@ -1,0 +1,5 @@
+/.phpunit.result.cache
+/vendor/
+.env
+/config/modules.local.php
+/storage/

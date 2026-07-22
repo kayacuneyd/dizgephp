@@ -1,0 +1,99 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+$root = dirname(__DIR__);
+require $root . '/dizge.php';
+require $root . '/routes/services.php';
+require $root . '/routes/web.php';
+require $root . '/routes/api.php';
+require $root . '/routes/demo.php';
+
+use Dizge\Data\Migrator;
+use Dizge\Jobs\FileQueue;
+use Dizge\Jobs\JobRegistry;
+use Dizge\Jobs\Worker;
+use Dizge\Security\ApiTokenStore;
+
+$command = $argv[1] ?? 'help';
+$argument = $argv[2] ?? null;
+
+/** @return never */
+function usage(int $status = 0): never {
+    echo "Dizge CLI\n\nCommands:\n  verify\n  benchmark\n  migrate [up|down]\n  route:list\n  inspect [--json|--markdown]\n  make:controller Name\n  make:action Name\n  make:migration name\n  module:enable cache|jobs|mail|api_tokens\n  job:work [count]\n  token:issue subject name [ability,...]\n";
+    exit($status);
+}
+
+function pascal(string $value): string {
+    $value = preg_replace('/[^A-Za-z0-9]+/', ' ', $value) ?? '';
+    $name = str_replace(' ', '', ucwords(trim($value)));
+    if ($name === '' || !preg_match('/^[A-Z][A-Za-z0-9]*$/', $name)) throw new InvalidArgumentException('Name must be a valid PascalCase identifier.');
+    return $name;
+}
+
+/** @param array<string,mixed> $value */
+function writeGenerated(string $path, string $content): void {
+    if (file_exists($path)) throw new RuntimeException('Refusing to overwrite existing file: ' . $path);
+    $directory = dirname($path);
+    if (!is_dir($directory) && !mkdir($directory, 0755, true) && !is_dir($directory)) throw new RuntimeException('Cannot create application directory.');
+    if (file_put_contents($path, $content, LOCK_EX) === false) throw new RuntimeException('Cannot write generated file.');
+}
+
+function manifest(): array {
+    $routes = array_map(static fn (array $route): array => [
+        'method' => $route['method'], 'path' => $route['pattern'],
+        'middleware' => array_map(static fn (mixed $entry): string => is_object($entry) ? $entry::class : 'callable', $route['middleware']),
+    ], app()->routes());
+    $root = app()->basePath();
+    $migrations = array_map(static fn ($migration): string => $migration->id(), Migrator::load($root . '/database/migrations'));
+    $components = array_map(static fn (string $file): string => basename($file, '.js'), glob($root . '/public/assets/demo/dv-*.js') ?: []);
+    return ['framework' => 'DizgePHP', 'php' => PHP_VERSION, 'routes' => $routes, 'migrations' => $migrations, 'components' => $components, 'modules' => (array) app()->config()->get('modules', []), 'verification' => ['bin/dizge verify', 'bin/dizge benchmark']];
+}
+
+try {
+    switch ($command) {
+        case 'help': usage();
+        case 'verify': passthru(escapeshellarg($root . '/bin/verify'), $status); exit($status);
+        case 'benchmark': passthru(escapeshellarg($root . '/bin/benchmark') . ($argument === '--check' ? ' --check' : ''), $status); exit($status);
+        case 'migrate':
+            $migrator = new Migrator(db()); $migrations = Migrator::load($root . '/database/migrations');
+            $ids = match ($argument ?? 'up') { 'up' => $migrator->migrate($migrations), 'down' => $migrator->rollback($migrations), default => throw new InvalidArgumentException('Usage: migrate [up|down]') };
+            echo $ids === [] ? "No migrations to run.\n" : implode("\n", $ids) . "\n"; break;
+        case 'route:list':
+            foreach (app()->routes() as $route) printf("%-6s %s\n", $route['method'], $route['pattern']); break;
+        case 'inspect':
+            $data = manifest();
+            if ($argument === '--markdown') {
+                echo "# Dizge inspect\n\n## Routes\n\n"; foreach ($data['routes'] as $route) echo '- `' . $route['method'] . ' ' . $route['path'] . "`\n";
+                echo "\n## Migrations\n\n"; foreach ($data['migrations'] as $migration) echo '- `' . $migration . "`\n";
+            } else echo json_encode($data, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
+            break;
+        case 'make:controller':
+            $name = pascal((string) $argument); $class = $name . 'Controller';
+            writeGenerated($root . '/app/Http/Controllers/' . $class . '.php', "<?php\n\ndeclare(strict_types=1);\n\nnamespace App\\Http\\Controllers;\n\nuse Dizge\\Http\\Controller;\nuse Dizge\\Http\\Request;\nuse Dizge\\Http\\Response;\n\nfinal class {$class} extends Controller\n{\n    /** @param array<string,string> \\$params */\n    public function index(Request \\$request, array \\$params): Response\n    {\n        return Response::html('<h1>{$name}</h1>');\n    }\n}\n");
+            echo "Created app/Http/Controllers/{$class}.php\n"; break;
+        case 'make:action':
+            $name = pascal((string) $argument);
+            writeGenerated($root . '/app/Actions/' . $name . '.php', "<?php\n\ndeclare(strict_types=1);\n\nnamespace App\\Actions;\n\nfinal class {$name}\n{\n    public function handle(): void\n    {\n    }\n}\n");
+            echo "Created app/Actions/{$name}.php\n"; break;
+        case 'make:migration':
+            $slug = strtolower(trim((string) preg_replace('/[^a-z0-9]+/i', '_', (string) $argument), '_'));
+            if ($slug === '') throw new InvalidArgumentException('Migration name is required.');
+            $file = $root . '/database/migrations/' . gmdate('YmdHi') . '_' . $slug . '.php';
+            writeGenerated($file, "<?php\n\ndeclare(strict_types=1);\n\nuse Dizge\\Data\\Database;\nuse Dizge\\Data\\Migration;\n\nreturn new class implements Migration {\n    public function id(): string { return '" . basename($file, '.php') . "'; }\n    public function up(Database \\$database): void { }\n    public function down(Database \\$database): void { }\n};\n");
+            echo 'Created database/migrations/' . basename($file) . "\n"; break;
+        case 'module:enable':
+            $name = (string) $argument; if (!in_array($name, ['cache', 'jobs', 'mail', 'api_tokens'], true)) throw new InvalidArgumentException('Unknown official module.');
+            $path = $root . '/config/modules.local.php'; $current = is_file($path) ? require $path : []; $current[$name] = true;
+            file_put_contents($path, "<?php\n\ndeclare(strict_types=1);\n\nreturn " . var_export($current, true) . ";\n", LOCK_EX); echo "Enabled {$name} in config/modules.local.php\n"; break;
+        case 'job:work':
+            $count = max(1, min(100, (int) ($argument ?? 1))); $worker = new Worker(app()->container()->get(FileQueue::class), app()->container()->get(JobRegistry::class)); $worked = 0;
+            while ($worked < $count && $worker->runOnce()) $worked++; echo "Processed {$worked} job(s).\n"; break;
+        case 'token:issue':
+            $subject = (string) ($argv[2] ?? ''); $name = (string) ($argv[3] ?? ''); $abilities = isset($argv[4]) ? explode(',', $argv[4]) : ['*'];
+            if ($subject === '' || $name === '') throw new InvalidArgumentException('Usage: token:issue subject name [ability,...]');
+            $issued = app()->container()->get(ApiTokenStore::class)->issue($subject, $name, $abilities); echo "Token (shown once): {$issued['token']}\n"; break;
+        default: usage(1);
+    }
+} catch (Throwable $exception) { fwrite(STDERR, '[dizge] ' . $exception->getMessage() . "\n"); exit(1); }
