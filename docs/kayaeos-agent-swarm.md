@@ -16,9 +16,11 @@ contract → isolated implementation → tests and benchmark → independent rev
 and `bin/dizge benchmark --check` → project memory update. Agents do not deploy directly to
 production or write simultaneously into the same concern.
 
-The benchmark gate compares the median of five local samples to the checked-in target-host median;
-each metric may regress by at most 15%. Refreshing a baseline requires a documented target-host
-measurement, not a one-off fast run.
+The benchmark gate compares the median of five samples to the checked-in target-host median;
+each metric may regress by at most 15%. The baseline is for the CI runner/target host, not a
+portable absolute performance promise across machines. Refreshing a baseline requires a
+documented target-host measurement, not a one-off fast run; local runs may be faster or slower
+than GitHub-hosted runners.
 
 `bin/dizge inspect --json` is the agent entrypoint. It supplies route, migration, component, module
 and verification context without forcing broad repository scans.
