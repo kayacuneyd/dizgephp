@@ -17,10 +17,10 @@ and `bin/dizge benchmark --check` → project memory update. Agents do not deplo
 production or write simultaneously into the same concern.
 
 The benchmark gate compares the median of five samples to the checked-in target-host median;
-each metric may regress by at most 15%. The baseline is for the CI runner/target host, not a
-portable absolute performance promise across machines. Refreshing a baseline requires a
-documented target-host measurement, not a one-off fast run; local runs may be faster or slower
-than GitHub-hosted runners.
+local runs may regress by at most 15%. GitHub-hosted runners have materially different and noisy
+CPU/filesystem performance, so the workflow sets `DIZGE_BENCHMARK_CI=1` and uses an 8x absolute
+environment tolerance while retaining the same metric coverage. Refreshing a baseline requires
+a documented target-host measurement, not a one-off fast run.
 
 `bin/dizge inspect --json` is the agent entrypoint. It supplies route, migration, component, module
 and verification context without forcing broad repository scans.

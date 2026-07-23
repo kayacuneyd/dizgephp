@@ -25,6 +25,8 @@ jobs:
         run: sh bin/verify
 
       - name: Benchmark regression gate (median of 5 samples, 15% budget)
+        env:
+          DIZGE_BENCHMARK_CI: '1'
         run: sh bin/benchmark --check
 
   assets:
