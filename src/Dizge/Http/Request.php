@@ -31,6 +31,13 @@ final class Request
             }
         }
         if (isset($_SERVER['REMOTE_ADDR']) && is_string($_SERVER['REMOTE_ADDR'])) $headers['remote-addr'] = $_SERVER['REMOTE_ADDR'];
+        if (isset($headers['remote-addr'])) {
+            $headers['remote-addr'] = TrustedProxy::resolveClientIp(
+                $headers['remote-addr'],
+                $headers['x-forwarded-for'] ?? null,
+                TrustedProxy::fromEnv(),
+            );
+        }
         $body = $_POST;
         if (str_starts_with(strtolower($headers['content-type'] ?? ''), 'application/json')) {
             try { $body = json_decode(file_get_contents('php://input') ?: '{}', true, 32, JSON_THROW_ON_ERROR); }

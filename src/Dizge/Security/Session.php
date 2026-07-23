@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Dizge\Security;
 
+use Dizge\Http\TrustedProxy;
+
 /** Native PHP session wrapper with strict IDs, HttpOnly cookies and SameSite=Lax defaults. */
 final class Session
 {
@@ -53,6 +55,21 @@ final class Session
     {
         $configured = getenv('DIZGE_SESSION_SECURE');
         if ($configured !== false && $configured !== '') return $configured !== '0';
-        return ($_SERVER['HTTPS'] ?? '') === 'on';
+        if (($_SERVER['HTTPS'] ?? '') === 'on') return true;
+        return $this->behindTrustedHttpsProxy();
+    }
+
+    /**
+     * Behind a TLS-terminating reverse proxy $_SERVER['HTTPS'] is empty, so without this the
+     * Secure cookie flag would silently never be set unless an operator remembers
+     * DIZGE_SESSION_SECURE. Only trusted when REMOTE_ADDR is an explicitly configured proxy
+     * (DIZGE_TRUSTED_PROXIES) — a request can never claim its own X-Forwarded-Proto.
+     */
+    private function behindTrustedHttpsProxy(): bool
+    {
+        $trusted = TrustedProxy::fromEnv();
+        $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? null;
+        if ($trusted === [] || !is_string($remoteAddr) || !TrustedProxy::isTrusted($remoteAddr, $trusted)) return false;
+        return strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
     }
 }

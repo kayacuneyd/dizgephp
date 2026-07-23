@@ -32,6 +32,14 @@ function cms_media(): MediaStorage { return new MediaStorage(app()->basePath() .
 /** @return list<Dizge\Http\Middleware> */
 function cms_protected(): array { return [new RequireAuth(auth(), '/demo/studio/login'), new RequireAbility(auth(), gate(), 'cms.manage')]; }
 
+/**
+ * Public read views (home cards, sitemap) are cached with a short TTL since they run an
+ * unconditional SQL query on every request; workflow transitions invalidate immediately so a
+ * publish/archive/restore never waits out the TTL.
+ */
+const CMS_PUBLIC_CACHE_KEYS = ['demo:home:pages', 'demo:home:articles', 'demo:sitemap:pages', 'demo:sitemap:articles'];
+function cms_invalidate_public_cache(): void { foreach (CMS_PUBLIC_CACHE_KEYS as $key) cache()->forget($key); }
+
 /** @param array<string, list<string>> $errors @param array<string,mixed> $old */
 function cms_editor_form(array $errors = [], array $old = [], ?array $content = null): string
 {
@@ -79,8 +87,8 @@ function cms_public_article(array $content): string
 
 app()->get('/demo', function (Request $request): Response {
     $repo = cms_repo();
-    $pages = $repo->published('page', 6);
-    $articles = $repo->published('article', 6);
+    $pages = cache()->remember('demo:home:pages', 60, fn (): array => $repo->published('page', 6));
+    $articles = cache()->remember('demo:home:articles', 60, fn (): array => $repo->published('article', 6));
     $pageLinks = $pages === [] ? '<p class="dc-empty">Henüz yayınlanmış sayfa yok.</p>' : '<div class="dc-card-grid">' . implode('', array_map(fn (array $page): string => '<a class="dc-card" href="/demo/pages/' . e((string) $page['slug']) . '"><span>Sayfa</span><strong>' . e((string) $page['title']) . '</strong></a>', $pages)) . '</div>';
     $articleLinks = $articles === [] ? '<p class="dc-empty">İlk makale Studio’dan yayınlandığında burada görünecek.</p>' : '<div class="dc-card-grid">' . implode('', array_map(fn (array $article): string => '<a class="dc-card" href="/demo/articles/' . e((string) $article['slug']) . '"><span>Makale</span><strong>' . e((string) $article['title']) . '</strong><small>' . e(gmdate('d.m.Y', strtotime((string) $article['published_at']))) . '</small></a>', $articles)) . '</div>';
     $main = '<section class="dc-hero"><div class="ck-container ck-stack"><p class="dc-kicker">DIZGEPHP REFERENCE APP</p><h1>İçeriğin karar süreci görünür olsun.</h1><p>DizgeCMS Studio; taslak, inceleme, onay ve yayın akışını sade bir SQLite çekirdeği üzerinde kurar.</p><div class="ck-cluster"><a class="ck-button" href="/demo/articles">Makaleleri incele</a><a class="ck-button ck-button--secondary" href="/demo/studio">Studio’ya git</a></div></div></section><section class="dc-section"><div class="ck-container ck-stack"><header><p class="dc-kicker">SAYFALAR</p><h2>Kalıcı anlatılar</h2></header>' . $pageLinks . '</div></section><section class="dc-section dc-section--muted"><div class="ck-container ck-stack"><header><p class="dc-kicker">MAKALELER</p><h2>Yayın akışından çıkanlar</h2></header>' . $articleLinks . '</div></section>';
@@ -120,7 +128,11 @@ app()->get('/demo/search', function (Request $request): Response {
 });
 
 app()->get('/demo/sitemap.xml', function (Request $request): Response {
-    $urls = [...cms_repo()->published('page', 1000), ...cms_repo()->published('article', 1000)];
+    $repo = cms_repo();
+    $urls = [
+        ...cache()->remember('demo:sitemap:pages', 300, fn (): array => $repo->published('page', 1000)),
+        ...cache()->remember('demo:sitemap:articles', 300, fn (): array => $repo->published('article', 1000)),
+    ];
     $xml = '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://dizgephp.digitaltamam.com/demo</loc></url><url><loc>https://dizgephp.digitaltamam.com/demo/articles</loc></url>';
     foreach ($urls as $item) $xml .= '<url><loc>https://dizgephp.digitaltamam.com/demo/' . ($item['type'] === 'page' ? 'pages/' : 'articles/') . rawurlencode((string) $item['slug']) . '</loc><lastmod>' . e(substr((string) $item['updated_at'], 0, 10)) . '</lastmod></url>';
     return Response::raw($xml . '</urlset>', 'application/xml; charset=UTF-8');
@@ -237,6 +249,7 @@ app()->post('/demo/studio/content/{id}/transition', function (Request $request, 
     if (strlen($note) > 1000 || !Policy::canTransition(auth()->requireUser(), (string) $content['status'], $to)) return Response::html(View::studio((string) $content['title'], cms_editor_form([], [], $content) . cms_workflow_panel($content, 'Bu durum geçişi bu rol için desteklenmiyor.', auth()->user()), auth()->user()), 422);
     cms_repo()->transition($id, $to, (int) auth()->requireUser()->id(), $note);
     cms_audit()->write('cms.content.transitioned', ['content_id' => $id, 'actor_id' => (int) auth()->requireUser()->id(), 'from' => (string) $content['status'], 'to' => $to]);
+    cms_invalidate_public_cache();
     return Response::redirect('/demo/studio/content/' . $id);
 }, cms_protected());
 
@@ -260,6 +273,7 @@ app()->post('/demo/studio/content/{id}/revisions/{revision}/restore', function (
     $id = (int) $params['id'];
     cms_repo()->restoreRevision($id, (int) $params['revision'], (int) auth()->requireUser()->id());
     cms_audit()->write('cms.content.restored', ['content_id' => $id, 'actor_id' => (int) auth()->requireUser()->id(), 'revision_id' => (int) $params['revision']]);
+    cms_invalidate_public_cache();
     return Response::redirect('/demo/studio/content/' . $id);
 }, cms_protected());
 

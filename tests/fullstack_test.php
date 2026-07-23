@@ -21,6 +21,7 @@ use Dizge\Mail\Mailer;
 use Dizge\Mail\Message;
 use Dizge\Mail\QueuedMailer;
 use Dizge\Security\ApiTokenStore;
+use Dizge\Security\AuditLog;
 use Dizge\Security\RequireApiToken;
 use Dizge\Validation\Validator;
 
@@ -51,6 +52,29 @@ $cache = new Cache(new FileStore($directory . '/cache', 'test'));
 $cache->put('dashboard:1', ['count' => 2], 60);
 fs_expect($cache->get('dashboard:1')['count'] === 2, 'File cache must persist JSON-safe values.');
 fs_expect($cache->remember('computed', 60, fn (): string => 'first') === 'first' && $cache->remember('computed', 60, fn (): string => 'second') === 'first', 'Cache remember must compute once per key.');
+
+$expiredFile = $directory . '/cache/test-' . hash('sha256', 'stale-entry') . '.json';
+file_put_contents($expiredFile, json_encode(['expires_at' => time() - 60, 'value' => 'stale'], JSON_THROW_ON_ERROR));
+$purged = $cache->gc();
+fs_expect($purged === 1, 'gc() must actively purge entries expired outside of get(), not just lazily on read.');
+fs_expect(!is_file($expiredFile), 'gc() must remove the expired cache file from disk.');
+fs_expect($cache->get('dashboard:1')['count'] === 2, 'gc() must never remove still-valid cache entries.');
+
+$auditFile = $directory . '/audit.log';
+$audit = new AuditLog($auditFile);
+$audit->write('example.event', ['id' => 1]);
+fs_expect($audit->rotateIfNeeded(maxBytes: 1_000_000) === null, 'A log under the size threshold must not rotate.');
+file_put_contents($auditFile, str_repeat('x', 200), FILE_APPEND);
+$rotated = $audit->rotateIfNeeded(maxBytes: 100, keep: 1);
+fs_expect($rotated !== null && is_file($rotated), 'An oversized log must rotate to a dated file.');
+fs_expect(!is_file($auditFile), 'Rotation must clear the active log path so the next write() starts fresh.');
+$audit->write('after.rotation', []);
+fs_expect(is_file($auditFile) && str_contains((string) file_get_contents($auditFile), 'after.rotation'), 'Writes after rotation must recreate the active log file.');
+file_put_contents($directory . '/audit-19990101-000000.log', 'old');
+$second = $audit->rotateIfNeeded(maxBytes: 0, keep: 1);
+fs_expect($second !== null, 'A second rotation must succeed once the active file has any content.');
+$history = glob($directory . '/audit-*.log') ?: [];
+fs_expect(count($history) === 1, 'Rotation must prune dated files beyond the retention count.');
 
 $registry = new JobRegistry(); $handled = [];
 $registry->register('test.notify', function (array $payload) use (&$handled): void { $handled[] = $payload['id']; });

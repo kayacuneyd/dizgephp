@@ -44,7 +44,6 @@ final class Container
     {
         if (isset($this->instances[$id])) return $this->instances[$id];
         if (isset($this->bindings[$id])) return ($this->bindings[$id])($this);
-        if (class_exists($id) && (new \ReflectionClass($id))->getConstructor() === null) return new $id();
         throw new \LogicException(sprintf('No explicit binding exists for "%s".', $id));
     }
 }

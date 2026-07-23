@@ -13,12 +13,26 @@ final class Config
     public function __construct(string $directory)
     {
         if (!is_dir($directory)) return;
-        foreach (glob($directory . '/*.php') ?: [] as $file) {
+        $files = glob($directory . '/*.php') ?: [];
+        $base = [];
+        $overrides = [];
+        foreach ($files as $file) {
+            if (str_ends_with(basename($file, '.php'), '.local')) $overrides[] = $file;
+            else $base[] = $file;
+        }
+        // Overrides are applied in a second pass, after every base config file, so a
+        // *.local.php file always wins regardless of glob()'s alphabetical file order
+        // (e.g. "modules.local.php" sorts before "modules.php").
+        foreach ($base as $file) {
             $value = require $file;
             if (!is_array($value)) continue;
-            $name = basename($file, '.php');
-            if ($name === 'modules.local') $this->values['modules'] = [...($this->values['modules'] ?? []), ...$value];
-            else $this->values[$name] = $value;
+            $this->values[basename($file, '.php')] = $value;
+        }
+        foreach ($overrides as $file) {
+            $value = require $file;
+            if (!is_array($value)) continue;
+            $name = substr(basename($file, '.php'), 0, -strlen('.local'));
+            $this->values[$name] = [...($this->values[$name] ?? []), ...$value];
         }
     }
 

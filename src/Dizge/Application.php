@@ -16,7 +16,9 @@ use Dizge\Http\Middleware;
 use Dizge\Security\Auth;
 use Dizge\Security\Csrf;
 use Dizge\Security\Gate;
+use Dizge\Security\RateLimiter;
 use Dizge\Security\Session;
+use Dizge\Security\Throttle;
 use Dizge\Security\VerifyCsrf;
 use Dizge\View\ViewRenderer;
 use Dizge\Validation\ValidationException;
@@ -38,6 +40,7 @@ final class Application
     private Registry $bridge;
     private Container $container;
     private Config $config;
+    private ?Throttle $globalThrottle = null;
     /** @var list<Middleware|callable> */
     private array $globalMiddleware;
 
@@ -55,7 +58,25 @@ final class Application
         $this->bridge = new Registry();
         // CSRF is a safe default for cookie-backed browser routes. Its middleware permits GET,
         // HEAD and OPTIONS, so this does not impose a token requirement on read-only pages.
-        $this->globalMiddleware = [new VerifyCsrf($this->csrf)];
+        //
+        // The global Throttle is an opt-in resource-exhaustion safety net for the whole app
+        // (ADR-0006, docs/auth-threat-model.md): one bucket per client IP shared across every
+        // route, sized from config/app.php's `rate_limit.max`/`rate_limit.seconds`. Off by
+        // default — the file-backed RateLimiter adds a real disk-lock-and-write cost to every
+        // request (~90x controller_dispatch when always-on, see ADR-0006's "Consequences"), so
+        // it costs nothing until an operator sets `rate_limit.enabled` to true. When on, it
+        // composes with, and never replaces, a route's own stricter per-route Throttle (e.g.
+        // routes/demo.php's /demo/api/context). A route can opt back out via the explicit,
+        // reviewable `withoutGlobalRateLimit: true` parameter on get()/post() below.
+        if ($this->config->get('app.rate_limit.enabled', false)) {
+            $this->globalThrottle = new Throttle(
+                new RateLimiter($basePath . '/storage/rate-limits'),
+                (int) $this->config->get('app.rate_limit.max', 300),
+                (int) $this->config->get('app.rate_limit.seconds', 60),
+                static fn (Request $request): string => 'global:' . ($request->header('remote-addr') ?? 'unknown'),
+            );
+        }
+        $this->globalMiddleware = $this->globalThrottle !== null ? [new VerifyCsrf($this->csrf), $this->globalThrottle] : [new VerifyCsrf($this->csrf)];
         $this->router->post('/_dizge/bridge', function (Request $request): Response {
             $id = $request->input('id'); $detail = $request->input('detail', []);
             if (!is_string($id) || !is_array($detail)) return Response::json(['error' => 'Invalid bridge payload.'], 422);
@@ -80,18 +101,39 @@ final class Application
         return self::$instance;
     }
 
-    /** @param callable(Request, array<string, string>): Response|array{class-string, string} $handler */
-    public function get(string $pattern, mixed $handler, array $middleware = []): self
+    /**
+     * @param callable(Request, array<string, string>): Response|array{class-string, string} $handler
+     * @param bool $withoutGlobalRateLimit Explicit, reviewable opt-out from the global default
+     *     Throttle only (VerifyCsrf and any $middleware you pass are unaffected). Reserved for a
+     *     route with a genuine reason not to share the app-wide bucket — see ADR-0006. Defaults
+     *     to false: every route is protected by the global default unless this is deliberately
+     *     set at the call site.
+     */
+    public function get(string $pattern, mixed $handler, array $middleware = [], bool $withoutGlobalRateLimit = false): self
     {
-        $this->router->get($pattern, $this->handler($handler), [...$this->globalMiddleware, ...$middleware]);
+        $this->router->get($pattern, $this->handler($handler), [...$this->globalMiddlewareFor($withoutGlobalRateLimit), ...$middleware]);
         return $this;
     }
 
-    /** @param callable(Request, array<string, string>): Response|array{class-string, string} $handler */
-    public function post(string $pattern, mixed $handler, array $middleware = []): self
+    /**
+     * @param callable(Request, array<string, string>): Response|array{class-string, string} $handler
+     * @param bool $withoutGlobalRateLimit See get()'s parameter of the same name.
+     */
+    public function post(string $pattern, mixed $handler, array $middleware = [], bool $withoutGlobalRateLimit = false): self
     {
-        $this->router->post($pattern, $this->handler($handler), [...$this->globalMiddleware, ...$middleware]);
+        $this->router->post($pattern, $this->handler($handler), [...$this->globalMiddlewareFor($withoutGlobalRateLimit), ...$middleware]);
         return $this;
+    }
+
+    /**
+     * @return list<Middleware|callable> The global middleware list, minus the global default
+     *     Throttle (by reference identity, never by type) when a route explicitly opts out, or
+     *     when the global default isn't enabled at all (nothing to remove either way).
+     */
+    private function globalMiddlewareFor(bool $withoutGlobalRateLimit): array
+    {
+        if (!$withoutGlobalRateLimit || $this->globalThrottle === null) return $this->globalMiddleware;
+        return array_values(array_filter($this->globalMiddleware, fn (mixed $middleware): bool => $middleware !== $this->globalThrottle));
     }
 
     /** @param array<string, mixed> $data */

@@ -53,15 +53,11 @@ require_once __DIR__ . '/src/Dizge/Security/LoginService.php';
 require_once __DIR__ . '/src/Dizge/Validation/ErrorBag.php';
 require_once __DIR__ . '/src/Dizge/Validation/ValidationException.php';
 require_once __DIR__ . '/src/Dizge/Validation/Validator.php';
-require_once __DIR__ . '/src/Dizge/Cms/HtmlSanitizer.php';
-require_once __DIR__ . '/src/Dizge/Cms/Slug.php';
-require_once __DIR__ . '/src/Dizge/Cms/Workflow.php';
-require_once __DIR__ . '/src/Dizge/Cms/Policy.php';
-require_once __DIR__ . '/src/Dizge/Cms/ContentRepository.php';
-require_once __DIR__ . '/src/Dizge/Cms/MediaStorage.php';
-require_once __DIR__ . '/src/Dizge/Cms/Retrieval.php';
-require_once __DIR__ . '/src/Dizge/Cms/View.php';
 require_once __DIR__ . '/src/Dizge/Application.php';
+
+// DizgeCMS Studio (src/Dizge/Cms/*) is a reference application, not part of the HTTP core; it
+// loads lazily through the Dizge\ autoloader above the first time /demo routes touch it, so an
+// app that never mounts routes/demo.php never pays to parse it.
 
 use Dizge\Application;
 use Dizge\Data\Database;

@@ -1,7 +1,8 @@
 # Security baseline
 
 The current security boundary includes server-rendered HTML, guarded data access and browser-session
-authentication. Bridge endpoints remain intentionally unimplemented.
+authentication. The DevinimJS bridge (`POST /_dizge/bridge`) is implemented, threat-modeled and
+tested; see `docs/adr/0005-devinim-bridge-protocol.md` and `docs/bridge-threat-model.md`.
 
 - `e()` uses UTF-8, `ENT_QUOTES` and `ENT_SUBSTITUTE`.
 - `dv()` only accepts known framework components and documented props.

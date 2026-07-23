@@ -18,8 +18,15 @@ $directory = sys_get_temp_dir() . '/dizge-cms-' . bin2hex(random_bytes(4));
 mkdir($directory, 0700, true);
 $database = new Database(new PDO('sqlite:' . $directory . '/app.sqlite'));
 $migrator = new Migrator($database);
-$migrations = Migrator::load(dirname(__DIR__) . '/database/migrations');
-cms_expect($migrator->migrate($migrations) === ['20260722_create_dizgecms', '20260723_add_cms_publishing_features', '20260724_create_dizge_api_tokens'], 'CMS and official-module migrations must apply to an empty SQLite database in order.');
+// Load from an isolated copy of only the shipped CMS/official-module migrations, not the live
+// database/migrations/ directory: that directory also holds whatever migrations an application
+// has added locally (e.g. via `bin/dizge make:migration`), which this test must stay agnostic to.
+$shippedMigrations = ['20260722_create_dizgecms', '20260723_add_cms_publishing_features', '20260724_create_dizge_api_tokens'];
+$fixtureDirectory = $directory . '/migrations';
+mkdir($fixtureDirectory, 0700, true);
+foreach ($shippedMigrations as $id) copy(dirname(__DIR__) . '/database/migrations/' . $id . '.php', $fixtureDirectory . '/' . $id . '.php');
+$migrations = Migrator::load($fixtureDirectory);
+cms_expect($migrator->migrate($migrations) === $shippedMigrations, 'CMS and official-module migrations must apply to an empty SQLite database in order.');
 
 $database->pdo()->prepare('INSERT INTO users (email, password_hash, role, created_at) VALUES (?, ?, ?, ?)')->execute(['admin@example.test', password_hash('not-a-real-password', PASSWORD_DEFAULT), 'admin', gmdate('c')]);
 $repository = new ContentRepository($database);
@@ -64,5 +71,7 @@ cms_expect($database->pdo()->query("SELECT name FROM sqlite_master WHERE type = 
 foreach (['/app.sqlite', '/app.sqlite-shm', '/app.sqlite-wal'] as $file) {
     if (is_file($directory . $file)) unlink($directory . $file);
 }
+array_map('unlink', glob($fixtureDirectory . '/*.php') ?: []);
+rmdir($fixtureDirectory);
 rmdir($directory);
 echo "DizgePHP CMS tests passed.\n";

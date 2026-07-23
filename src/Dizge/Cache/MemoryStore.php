@@ -13,4 +13,12 @@ final class MemoryStore implements CacheStore
     public function put(string $key, mixed $value, int $seconds): void { if ($seconds < 1) throw new \InvalidArgumentException('Cache TTL must be at least one second.'); $this->items[$key] = ['expires_at' => time() + $seconds, 'value' => $value]; }
     public function forget(string $key): void { unset($this->items[$key]); }
     public function clear(): void { $this->items = []; }
+
+    public function gc(): int
+    {
+        $now = time();
+        $before = count($this->items);
+        $this->items = array_filter($this->items, static fn (array $item): bool => $item['expires_at'] >= $now);
+        return $before - count($this->items);
+    }
 }

@@ -35,6 +35,18 @@ final class FileStore implements CacheStore
     public function forget(string $key): void { @unlink($this->path($key)); }
     public function clear(): void { foreach (glob($this->directory . '/' . $this->namespace . '-*.json') ?: [] as $file) @unlink($file); }
 
+    public function gc(): int
+    {
+        $purged = 0;
+        foreach (glob($this->directory . '/' . $this->namespace . '-*.json') ?: [] as $file) {
+            $raw = @file_get_contents($file);
+            if ($raw === false) continue;
+            try { $entry = json_decode($raw, true, 32, JSON_THROW_ON_ERROR); } catch (\JsonException) { @unlink($file); $purged++; continue; }
+            if (!is_array($entry) || !isset($entry['expires_at']) || (int) $entry['expires_at'] < time()) { @unlink($file); $purged++; }
+        }
+        return $purged;
+    }
+
     private function path(string $key): string
     {
         if ($key === '' || strlen($key) > 240) throw new \InvalidArgumentException('Cache key is invalid.');

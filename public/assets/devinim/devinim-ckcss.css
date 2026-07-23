@@ -1,0 +1,70 @@
+/* Optional CKCSS visual adapter for DevinimJS Light-DOM components. */
+dv-counter, dv-disclosure, dv-dropdown, dv-search, dv-field, dv-autocomplete, dv-confirm, dv-pagination, dv-product-card, dv-cart, dv-data-table, dv-state { display: block; }
+dv-modal, dv-toast { display: block; }
+.dv-dropdown, .dv-search, .dv-field, .dv-autocomplete { display: grid; gap: .5rem; max-inline-size: 32rem; }
+.dv-dropdown [role="menu"], .dv-autocomplete [role="listbox"] { margin: 0; padding: .4rem; list-style: none; border: 1px solid var(--ck-color-border); border-radius: .5rem; background: var(--ck-color-surface-raised); box-shadow: 0 .75rem 1.5rem color-mix(in srgb, var(--ck-color-text) 12%, transparent); }
+.dv-dropdown [role="menu"] a, .dv-autocomplete [role="option"] button { display: block; inline-size: 100%; padding: .45rem .6rem; text-align: start; }
+.dv-search, .dv-field label, .dv-autocomplete label { color: var(--ck-color-text); font-weight: 600; }
+.dv-search input, .dv-field input, .dv-field textarea, .dv-field select, .dv-autocomplete input { inline-size: 100%; margin-block-start: .25rem; padding: .6rem .7rem; border: 1px solid var(--ck-color-border-strong); border-radius: .4rem; background: var(--ck-color-surface-raised); }
+.dv-field [aria-invalid="true"] { border-color: var(--ck-color-danger); }
+.dv-field [role="alert"] { margin: 0; color: var(--ck-color-danger); font-size: .9rem; }
+dv-counter button, dv-disclosure button, .dv-dropdown > button, .dv-search button, .dv-product-card button, .dv-confirm button, .dv-cart button, .dv-state button, .dv-data-table button, .dv-toast-stack button, dv-pagination button { padding: .5rem .7rem; border: 1px solid var(--ck-color-primary); border-radius: .4rem; background: var(--ck-color-primary); color: var(--ck-color-on-primary); cursor: pointer; }
+dv-counter button:hover, dv-disclosure button:hover, .dv-dropdown > button:hover, .dv-product-card button:hover, .dv-confirm button:hover, .dv-cart button:hover, .dv-state button:hover, .dv-data-table button:hover, .dv-toast-stack button:hover, dv-pagination button:hover { background: var(--ck-color-primary-hover); }
+button:disabled { cursor: not-allowed; opacity: .55; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible { outline: 3px solid var(--ck-color-focus); outline-offset: 2px; }
+.dv-product-card, .dv-cart, .dv-state, .dv-data-table { padding: 1rem; border: 1px solid var(--ck-color-border); border-radius: .65rem; background: var(--ck-color-surface-raised); }
+.dv-product-card h3 { margin-block: 0 .4rem; }
+.dv-cart ul { display: grid; gap: .7rem; margin: 0; padding: 0; list-style: none; }
+.dv-cart li { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem; padding-block-end: .7rem; border-block-end: 1px solid var(--ck-color-border); }
+.dv-cart li > span:first-child { flex: 1 1 12rem; font-weight: 600; }
+.dv-cart output { min-inline-size: 2ch; text-align: center; }
+.dv-toast-stack { position: fixed; z-index: 20; right: 1rem; bottom: 1rem; display: grid; gap: .5rem; max-inline-size: min(24rem, calc(100vw - 2rem)); }
+.dv-toast-stack output { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .75rem 1rem; border-radius: .5rem; background: var(--ck-color-text); color: var(--ck-color-surface-raised); box-shadow: 0 .5rem 1.5rem color-mix(in srgb, var(--ck-color-text) 20%, transparent); }
+.dv-toast-stack button { padding: 0; border: 0; background: transparent; color: inherit; font-size: 1.2rem; }
+.dv-data-table { overflow-x: auto; }
+.dv-data-table table { inline-size: 100%; border-collapse: collapse; }
+.dv-data-table th, .dv-data-table td { padding: .65rem; border-block-end: 1px solid var(--ck-color-border); text-align: start; }
+.dv-data-table th button { padding: 0; border: 0; background: transparent; color: var(--ck-color-text); }
+.dv-state[hidden] { display: none; }
+
+/* Dialog and single status components are fixed overlays, not document-flow content. */
+.dv-modal-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: var(--ck-space-4); background: color-mix(in srgb, var(--ck-color-text) 68%, transparent); }
+.dv-modal-backdrop[hidden] { display: none; }
+.dv-modal { inline-size: min(36rem, 100%); max-block-size: min(90vh, 42rem); overflow: auto; padding: 0; border: 1px solid var(--ck-color-border); border-radius: var(--ck-radius-md); background: var(--ck-color-surface-raised); color: var(--ck-color-text); box-shadow: 0 1.5rem 4rem color-mix(in srgb, var(--ck-color-text) 28%, transparent); }
+.dv-modal header { display: flex; align-items: center; justify-content: space-between; gap: var(--ck-space-3); padding: var(--ck-space-4); border-block-end: 1px solid var(--ck-color-border); }
+.dv-modal header h2 { margin: 0; }
+.dv-modal header button { padding: .2rem .55rem; border: 0; background: transparent; color: var(--ck-color-text); font-size: 1.4rem; cursor: pointer; }
+.dv-modal-content { padding: var(--ck-space-4); }
+.dv-toast { position: fixed; inset-inline-end: var(--ck-space-4); inset-block-end: var(--ck-space-4); z-index: 110; max-inline-size: min(26rem, calc(100vw - 2rem)); padding: var(--ck-space-3) var(--ck-space-4); border: 1px solid var(--ck-color-border); border-radius: var(--ck-radius-md); background: var(--ck-color-text); color: var(--ck-color-surface-raised); box-shadow: 0 .75rem 2rem color-mix(in srgb, var(--ck-color-text) 25%, transparent); }
+.dv-toast[hidden] { display: none; }
+
+/* CKCSS's two-column primitive collapses at the same point as the rest of the site. */
+@media (max-width: 48rem) {
+  .ck-grid--2 { grid-template-columns: 1fr; }
+}
+
+/* Product/docs pages keep CKCSS's tokens but use a calmer editorial scale. */
+.dv-site { overflow-x: hidden; }
+.dv-site > header { padding-block: var(--ck-space-4); margin-block-end: var(--ck-space-5); }
+.dv-site > footer { padding-block: var(--ck-space-5); margin-block-start: var(--ck-space-5); }
+.dv-site h1 { max-inline-size: 16ch; font-size: clamp(2.35rem, 6vw, 5rem); line-height: 1; }
+.dv-site h2 { font-size: clamp(1.65rem, 3.5vw, 2.8rem); }
+.dv-site h3 { font-size: 1.2rem; }
+.dv-site .ck-text-lead { max-inline-size: 65ch; font-size: clamp(1rem, 1.5vw, 1.2rem); line-height: 1.55; }
+.dv-site .ck-button { font-size: .95rem; }
+.dv-site .ck-card__header h2 { font-size: 1.25rem; }
+.dv-site .ck-card__header h3 { margin-block: .35rem 0; }
+
+@media (max-width: 48rem) {
+  .dv-site > header { align-items: flex-start; }
+  .dv-site > header nav { justify-content: flex-start; gap: var(--ck-space-2); }
+  .dv-site > header nav a { font-size: .9rem; }
+  .dv-site > header > a { font-size: 1.15rem; }
+  .dv-site h1 { font-size: clamp(2.15rem, 11vw, 3.5rem); }
+  .dv-site h2 { font-size: clamp(1.5rem, 8vw, 2.2rem); }
+  .dv-site .ck-container--wide { padding-inline: var(--ck-space-4); }
+  .dv-site .ck-grid { gap: var(--ck-space-4); }
+  .dv-site .ck-stack--relaxed { gap: var(--ck-space-6); }
+  .dv-site .ck-card { border-radius: var(--ck-radius-md); }
+  .dv-site .ck-field, .dv-site .dv-search { max-inline-size: none; }
+}

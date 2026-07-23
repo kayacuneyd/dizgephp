@@ -1,5 +1,7 @@
 {
   "controller_dispatch": 0.00324519,
   "cache_round_trip": 0.00031053,
+  "file_cache_round_trip": 0.32,
+  "router_dispatch_at_scale": 0.15,
   "job_enqueue": 0.14050143
 }

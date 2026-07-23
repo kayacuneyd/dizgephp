@@ -28,6 +28,12 @@ final class Renderer
     private array $used = [];
     private string $modulePath = '/assets/devinim/modules/';
 
+    /** @return list<string> Registered component names (without the "dv-" prefix), e.g. "counter". */
+    public static function componentNames(): array
+    {
+        return array_keys(self::COMPONENTS);
+    }
+
     public function setModulePath(string $path): void
     {
         if ($path === '') throw new \InvalidArgumentException('DevinimJS module path cannot be empty.');
@@ -77,9 +83,36 @@ final class Renderer
     public function scripts(): string
     {
         return implode('', array_map(
-            fn (string $name): string => sprintf('<script type="module" src="%s"></script>', \e($this->modulePath . 'dv-' . $name . '.js')),
+            fn (string $name): string => sprintf('<script type="module" src="%s"></script>', \e(self::versionedUrl($this->modulePath . 'dv-' . $name . '.js'))),
             $this->used,
         ));
+    }
+
+    /**
+     * Appends a `?v=<mtime>` cache-busting query string to a same-origin `/assets/...` URL,
+     * read from the actual published file's mtime on disk (see `bin/publish-assets`). This is
+     * what makes the long, immutable `Cache-Control` on `/assets/**` in `public/.htaccess` safe:
+     * component/runtime filenames are not content-hashed (this project is build-free by
+     * contract, see `AGENTS.md`), so without a changing URL a browser would keep serving a
+     * stale, possibly broken component after an upgrade for up to the cache lifetime.
+     *
+     * An external URL (an operator-configured CDN via `dv_path()`, or a protocol-relative URL)
+     * is returned unchanged: `filemtime()` has no meaning for a URL that is not a local file,
+     * and a pinned CDN URL (see `docs/deployment.md`) is already immutable by tagged version.
+     *
+     * General-purpose: works for any local `/assets/...` path, not just component modules —
+     * e.g. `/assets/dizge-bridge.js`. `dv_bridge_scripts()` (`dizge.php`) does not call this yet
+     * even though that file has the same staleness exposure; see the comment above its
+     * definition and `docs/swarm/handoffs/TASK-003-implementer.md` for why.
+     */
+    public static function versionedUrl(string $urlPath): string
+    {
+        if (!str_starts_with($urlPath, '/') || str_starts_with($urlPath, '//')) {
+            return $urlPath;
+        }
+        $localFile = dirname(__DIR__, 3) . '/public' . $urlPath;
+        $mtime = is_file($localFile) ? filemtime($localFile) : false;
+        return $mtime !== false ? $urlPath . '?v=' . $mtime : $urlPath;
     }
 
     /** @param array<string, mixed> $attributes */

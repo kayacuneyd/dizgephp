@@ -32,6 +32,21 @@ Render a validated DevinimJS component from a PHP view:
 <?= dv_scripts() ?>
 ```
 
+When a component needs a server-authoritative correction — not just server-rendered initial
+state — bind a handler and load the bridge client:
+
+```php
+dv_bridge('welcome-counter', '#welcome-counter', 'change', function (array $detail): ?Dizge\Bridge\Patch {
+    return null; // or `dv_patch([...])` to correct the client
+});
+```
+```php
+<?= dv_bridge_scripts() ?>
+```
+
+See [the bridge ADR](docs/adr/0005-devinim-bridge-protocol.md) and
+[the bridge threat model](docs/bridge-threat-model.md) before adding a binding.
+
 See [the project spec](docs/specs/2026-07-22-new-project.md) for MVP and future module scope.
 The current escaping and component-rendering boundary is documented in
 [the security baseline](docs/security-baseline.md).

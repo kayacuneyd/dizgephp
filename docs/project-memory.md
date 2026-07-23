@@ -9,7 +9,7 @@
 - 2026-07-22: Browser sessions use strict native PHP sessions; CSRF runs globally for state-changing routes, while `RequireAuth` and `gate()` policies make protected-route ownership explicit.
 - 2026-07-22: Run `bin/verify` for PHP syntax, core/security/data behavior checks and `bin/benchmark` for router/query baselines.
 - 2026-07-22: Production is live at `https://dizgephp.digitaltamam.com`; Nginx serves `/var/www/dizgephp/public` via `/etc/nginx/sites-available/dizgephp.digitaltamam.com` and PHP 8.1-FPM.
-- 2026-07-22: Run `bin/publish-assets` before deployment. It publishes the local bridge and pinned DevinimJS counter assets; use `DEVINIM_DIST=/path/to/devinim/dist` when the sibling checkout is elsewhere.
+- 2026-07-22: Run `bin/publish-assets` before deployment. It publishes the local bridge, every built DevinimJS component module, the DevinimJS/CKCSS runtimes and theme CSS; use `DEVINIM_DIST=/path/to/devinim/dist` and `CKCSS_ASSETS=/path/to/ckcss/site/assets` when either sibling checkout is elsewhere. `bin/dizge assets:check` verifies the Renderer::COMPONENTS allowlist and the published files stay in sync.
 - 2026-07-22: The Let’s Encrypt certificate for `dizgephp.digitaltamam.com` is active through 2026-10-20 and is managed by Certbot’s scheduled renewal.
 - 2026-07-22: DizgeCMS Studio is the workflow-first reference application at `/demo`; it defaults to `storage/app.sqlite`, which is owned by `www-data:www-data` with no public-web access on this VPS.
 - 2026-07-22: Initialize CMS storage with `bin/migrate up`, create the sole admin with `DIZGE_ADMIN_PASSWORD='...' bin/cms-admin create admin@example.com`, then run `bin/publish-assets` after asset changes. No admin account is seeded in source control.

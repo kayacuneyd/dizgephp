@@ -19,4 +19,28 @@ final class AuditLog
         if ($handle === false || !flock($handle, LOCK_EX)) throw new \RuntimeException('Cannot write audit log.');
         fwrite($handle, $record); fflush($handle); flock($handle, LOCK_UN); fclose($handle);
     }
+
+    /**
+     * The log is append-only and otherwise never shrinks; on shared hosting with a tight disk
+     * quota it must be bounded. When the active file exceeds $maxBytes, it's renamed to a dated
+     * file (same idiom as bin/cms-backup) and only the newest $keep dated files are retained.
+     * Returns the rotated file path, or null if rotation wasn't needed.
+     */
+    public function rotateIfNeeded(int $maxBytes = 5_000_000, int $keep = 14): ?string
+    {
+        clearstatcache(true, $this->file);
+        if (!is_file($this->file) || filesize($this->file) < $maxBytes) return null;
+        $directory = dirname($this->file);
+        $base = basename($this->file, '.log');
+        $rotated = $directory . '/' . $base . '-' . gmdate('Ymd-His') . '.log';
+        $handle = fopen($this->file, 'ab');
+        if ($handle === false || !flock($handle, LOCK_EX)) throw new \RuntimeException('Cannot rotate audit log.');
+        rename($this->file, $rotated);
+        flock($handle, LOCK_UN);
+        fclose($handle);
+        $history = glob($directory . '/' . $base . '-*.log') ?: [];
+        rsort($history, SORT_STRING);
+        foreach (array_slice($history, $keep) as $old) @unlink($old);
+        return $rotated;
+    }
 }

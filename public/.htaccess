@@ -1,4 +1,42 @@
-RewriteEngine On
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^ index.php [QSA,L]
+# Defense in depth: the layout already keeps secrets and storage/ outside public/, so none of
+# this is required for today's directory structure to be safe — it protects against the most
+# realistic shared-hosting operator mistake, a DocumentRoot pointed at the repo root instead of
+# public/, and against a misconfigured Apache re-enabling directory listing at the vhost level.
+Options -Indexes
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+    # public/assets/** (bin/publish-assets: DevinimJS component modules/runtime, CKCSS, and this
+    # project's own dizge-bridge.js) is committed, build-free and never hand-edited, so a
+    # one-year cache is safe on shared hosting with no CDN in front of it — the single biggest
+    # lever for repeat-visit performance there. It is only safe for the files that get a
+    # cache-busting URL: filenames are NOT content-hashed (no build step, see AGENTS.md), so
+    # Dizge\Devinim\Renderer::scripts() (dv_scripts()) appends a `?v=<mtime>` query string read
+    # from the published file on disk, changing the URL the moment bin/publish-assets republishes
+    # a changed component, instead of a browser keeping a stale/broken one cached for a year. See
+    # docs/deployment.md ("Caching self-hosted assets") for what is NOT yet covered by this
+    # (dv_bridge_scripts()'s dizge-bridge.js, and the hand-linked CKCSS/DizgeCMS CSS/SVG).
+    # The DIZGE_STATIC_ASSET env var is set below (mod_rewrite), scoped to /assets/ by request
+    # path (not by file extension), so this can never apply to index.php or any other response.
+    Header set Cache-Control "public, max-age=31536000, immutable" env=DIZGE_STATIC_ASSET
+</IfModule>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Block dotfiles (.env, .git, etc.) even if one is ever added under public/.
+    RewriteRule "(^|/)\." - [F]
+
+    # Flag requests under /assets/ so the mod_headers block above can apply the long
+    # Cache-Control only there (Header's `env=` reads this). Path-scoped, not extension-scoped,
+    # so it stays correct even if a non-static or non-cacheable file type ever lands there.
+    RewriteCond %{REQUEST_URI} ^/assets/
+    RewriteRule ^ - [E=DIZGE_STATIC_ASSET:1]
+
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>

@@ -11,6 +11,7 @@ require $root . '/routes/api.php';
 require $root . '/routes/demo.php';
 
 use Dizge\Data\Migrator;
+use Dizge\Devinim\Renderer;
 use Dizge\Jobs\FileQueue;
 use Dizge\Jobs\JobRegistry;
 use Dizge\Jobs\Worker;
@@ -21,7 +22,7 @@ $argument = $argv[2] ?? null;
 
 /** @return never */
 function usage(int $status = 0): never {
-    echo "Dizge CLI\n\nCommands:\n  verify\n  benchmark\n  migrate [up|down]\n  route:list\n  inspect [--json|--markdown]\n  make:controller Name\n  make:action Name\n  make:migration name\n  module:enable cache|jobs|mail|api_tokens\n  job:work [count]\n  token:issue subject name [ability,...]\n";
+    echo "Dizge CLI\n\nCommands:\n  verify\n  benchmark\n  migrate [up|down]\n  route:list\n  inspect [--json|--markdown]\n  assets:check\n  make:controller Name\n  make:action Name\n  make:migration name\n  make:resource Name\n  module:enable cache|jobs|mail|api_tokens\n  job:work [count]\n  cache:gc\n  token:issue subject name [ability,...]\n";
     exit($status);
 }
 
@@ -40,6 +41,86 @@ function writeGenerated(string $path, string $content): void {
     if (file_put_contents($path, $content, LOCK_EX) === false) throw new RuntimeException('Cannot write generated file.');
 }
 
+/** Naive but sufficient English pluralization for generated table/route names, e.g. "product" -> "products", "category" -> "categories", "box" -> "boxes". */
+function pluralize(string $word): string {
+    if (preg_match('/[^aeiou]y$/i', $word) === 1) return substr($word, 0, -1) . 'ies';
+    if (preg_match('/(s|x|z|ch|sh)$/i', $word) === 1) return $word . 'es';
+    return $word . 's';
+}
+
+/** Converts a pascal() identifier to snake_case, e.g. "BlogPost" -> "blog_post". */
+function snake(string $pascalCase): string {
+    return strtolower((string) preg_replace('/(?<!^)[A-Z]/', '_$0', $pascalCase));
+}
+
+/**
+ * The one migration file shape both `make:migration` and `make:resource` emit, so the two
+ * commands cannot drift. Leaving $up/$down empty reproduces a no-op migration stub.
+ */
+function migrationTemplate(string $id, string $up = '', string $down = ''): string {
+    $upBody = ' ' . ($up === '' ? '' : $up . ' ');
+    $downBody = ' ' . ($down === '' ? '' : $down . ' ');
+    return "<?php\n\ndeclare(strict_types=1);\n\nuse Dizge\\Data\\Database;\nuse Dizge\\Data\\Migration;\n\nreturn new class implements Migration {\n    public function id(): string { return '{$id}'; }\n    public function up(Database \$database): void {{$upBody}}\n    public function down(Database \$database): void {{$downBody}}\n};\n";
+}
+
+/**
+ * Merges Renderer::COMPONENTS (this repo's server-side prop allowlist — the ground truth for what
+ * dv() accepts) with the sibling DevinimJS component-manifest.json (browser custom-element tag,
+ * observed attributes and bubbling dv:* events) when that checkout is resolvable. Mirrors the
+ * DEVINIM_DIST convention in bin/publish-assets: a fixed default path, overridable by an env var,
+ * and never fatal when the sibling repo is not checked out — inspect must keep working either way.
+ *
+ * @return array<string, array{props: list<string>, tag: string, attributes: ?list<string>, events: ?list<string>}>
+ */
+function componentContract(): array {
+    /** @var array<string, list<string>> $propsByComponent */
+    $propsByComponent = (new ReflectionClass(Renderer::class))->getReflectionConstant('COMPONENTS')->getValue();
+    $contract = [];
+    foreach ($propsByComponent as $componentName => $props) {
+        $contract[$componentName] = ['props' => $props, 'tag' => 'dv-' . $componentName, 'attributes' => null, 'events' => null];
+    }
+
+    $manifestPath = getenv('DEVINIM_MANIFEST');
+    if ($manifestPath === false || $manifestPath === '') $manifestPath = '/var/www/devinimjs/docs/component-manifest.json';
+    if (!is_file($manifestPath)) return $contract;
+    $raw = file_get_contents($manifestPath);
+    if ($raw === false) return $contract;
+    try {
+        $decoded = json_decode($raw, true, 16, JSON_THROW_ON_ERROR);
+    } catch (\JsonException) {
+        return $contract;
+    }
+    if (!is_array($decoded['components'] ?? null)) return $contract;
+    foreach ($decoded['components'] as $entry) {
+        if (!is_array($entry) || !is_string($entry['tag'] ?? null)) continue;
+        $componentName = str_starts_with($entry['tag'], 'dv-') ? substr($entry['tag'], 3) : $entry['tag'];
+        if (!isset($contract[$componentName])) continue; // Only enrich components this repo's Renderer actually exposes.
+        $contract[$componentName]['attributes'] = array_values(array_filter((array) ($entry['attributes'] ?? []), 'is_string'));
+        $contract[$componentName]['events'] = array_values(array_filter((array) ($entry['events'] ?? []), 'is_string'));
+    }
+    return $contract;
+}
+
+/**
+ * Cross-checks Renderer::COMPONENTS (the server-side allowlist dv() will render) against what
+ * bin/publish-assets actually copied into public/assets/devinim/. A component present in one but
+ * not the other is exactly the class of bug this catches: dv() renders a <script src="…"> tag
+ * for a module that 404s in the browser.
+ *
+ * @return array{components: list<array{name: string, tag: string, published: bool}>, runtime: array<string, bool>}
+ */
+function assetParity(): array {
+    $moduleDir = app()->basePath() . '/public/assets/devinim/modules';
+    $published = array_map(static fn (string $file): string => basename($file, '.js'), glob($moduleDir . '/dv-*.js') ?: []);
+    $components = array_map(static fn (string $name): array => [
+        'name' => $name, 'tag' => 'dv-' . $name, 'published' => in_array('dv-' . $name, $published, true),
+    ], Renderer::componentNames());
+    $devinimDir = app()->basePath() . '/public/assets/devinim';
+    // Every published component imports one of these two runtimes (bin/publish-assets comment).
+    $runtime = ['core.min.js' => is_file($devinimDir . '/core.min.js'), 'authoring.min.js' => is_file($devinimDir . '/authoring.min.js')];
+    return ['components' => $components, 'runtime' => $runtime];
+}
+
 function manifest(): array {
     $routes = array_map(static fn (array $route): array => [
         'method' => $route['method'], 'path' => $route['pattern'],
@@ -47,8 +128,8 @@ function manifest(): array {
     ], app()->routes());
     $root = app()->basePath();
     $migrations = array_map(static fn ($migration): string => $migration->id(), Migrator::load($root . '/database/migrations'));
-    $components = array_map(static fn (string $file): string => basename($file, '.js'), glob($root . '/public/assets/demo/dv-*.js') ?: []);
-    return ['framework' => 'DizgePHP', 'php' => PHP_VERSION, 'routes' => $routes, 'migrations' => $migrations, 'components' => $components, 'modules' => (array) app()->config()->get('modules', []), 'verification' => ['bin/dizge verify', 'bin/dizge benchmark']];
+    $assets = assetParity();
+    return ['framework' => 'DizgePHP', 'php' => PHP_VERSION, 'routes' => $routes, 'migrations' => $migrations, 'components' => $assets['components'], 'component_contract' => componentContract(), 'devinim_runtime' => $assets['runtime'], 'modules' => (array) app()->config()->get('modules', []), 'verification' => ['bin/dizge verify', 'bin/dizge benchmark']];
 }
 
 try {
@@ -62,6 +143,18 @@ try {
             echo $ids === [] ? "No migrations to run.\n" : implode("\n", $ids) . "\n"; break;
         case 'route:list':
             foreach (app()->routes() as $route) printf("%-6s %s\n", $route['method'], $route['pattern']); break;
+        case 'assets:check':
+            $assets = assetParity();
+            $missingComponents = array_values(array_filter($assets['components'], static fn (array $c): bool => !$c['published']));
+            $missingRuntime = array_keys(array_filter($assets['runtime'], static fn (bool $ok): bool => !$ok));
+            if ($missingComponents === [] && $missingRuntime === []) {
+                echo 'OK: all ' . count($assets['components']) . " components and the DevinimJS runtime are published under public/assets/devinim/.\n";
+                break;
+            }
+            foreach ($missingComponents as $component) fwrite(STDERR, "Missing module: public/assets/devinim/modules/{$component['tag']}.js\n");
+            foreach ($missingRuntime as $file) fwrite(STDERR, "Missing runtime: public/assets/devinim/{$file}\n");
+            fwrite(STDERR, "Run bin/publish-assets (with DEVINIM_DIST set if the sibling checkout is elsewhere) to fix.\n");
+            exit(1);
         case 'inspect':
             $data = manifest();
             if ($argument === '--markdown') {
@@ -71,7 +164,7 @@ try {
             break;
         case 'make:controller':
             $name = pascal((string) $argument); $class = $name . 'Controller';
-            writeGenerated($root . '/app/Http/Controllers/' . $class . '.php', "<?php\n\ndeclare(strict_types=1);\n\nnamespace App\\Http\\Controllers;\n\nuse Dizge\\Http\\Controller;\nuse Dizge\\Http\\Request;\nuse Dizge\\Http\\Response;\n\nfinal class {$class} extends Controller\n{\n    /** @param array<string,string> \\$params */\n    public function index(Request \\$request, array \\$params): Response\n    {\n        return Response::html('<h1>{$name}</h1>');\n    }\n}\n");
+            writeGenerated($root . '/app/Http/Controllers/' . $class . '.php', "<?php\n\ndeclare(strict_types=1);\n\nnamespace App\\Http\\Controllers;\n\nuse Dizge\\Http\\Controller;\nuse Dizge\\Http\\Request;\nuse Dizge\\Http\\Response;\n\nfinal class {$class} extends Controller\n{\n    /** @param array<string,string> \$params */\n    public function index(Request \$request, array \$params): Response\n    {\n        return Response::html('<h1>{$name}</h1>');\n    }\n}\n");
             echo "Created app/Http/Controllers/{$class}.php\n"; break;
         case 'make:action':
             $name = pascal((string) $argument);
@@ -81,8 +174,45 @@ try {
             $slug = strtolower(trim((string) preg_replace('/[^a-z0-9]+/i', '_', (string) $argument), '_'));
             if ($slug === '') throw new InvalidArgumentException('Migration name is required.');
             $file = $root . '/database/migrations/' . gmdate('YmdHi') . '_' . $slug . '.php';
-            writeGenerated($file, "<?php\n\ndeclare(strict_types=1);\n\nuse Dizge\\Data\\Database;\nuse Dizge\\Data\\Migration;\n\nreturn new class implements Migration {\n    public function id(): string { return '" . basename($file, '.php') . "'; }\n    public function up(Database \\$database): void { }\n    public function down(Database \\$database): void { }\n};\n");
+            writeGenerated($file, migrationTemplate(basename($file, '.php')));
             echo 'Created database/migrations/' . basename($file) . "\n"; break;
+        case 'make:resource':
+            $name = pascal((string) $argument); $class = $name . 'Controller';
+            $table = pluralize(snake($name));
+            $route = str_replace('_', '-', $table);
+            $viewDir = $table;
+            $namePlural = implode(' ', array_map('ucfirst', explode('_', $table)));
+
+            $controllerPath = $root . '/app/Http/Controllers/' . $class . '.php';
+            writeGenerated($controllerPath, "<?php\n\ndeclare(strict_types=1);\n\nnamespace App\\Http\\Controllers;\n\nuse Dizge\\Data\\Database;\nuse Dizge\\Http\\Controller;\nuse Dizge\\Http\\Request;\nuse Dizge\\Http\\Response;\nuse Dizge\\Validation\\Validator;\n\nfinal class {$class} extends Controller\n{\n    private const RULES = ['name' => 'required|string|max:160'];\n\n    public function __construct(private Database \$database) {}\n\n    /** @param array<string,string> \$params */\n    public function index(Request \$request, array \$params): Response\n    {\n        \$rows = \$this->database->table('{$table}')->orderBy('id', 'DESC')->limit(50)->get();\n        return view('{$viewDir}/index.php', ['title' => '{$namePlural}', 'rows' => \$rows]);\n    }\n\n    /** @param array<string,string> \$params */\n    public function show(Request \$request, array \$params): Response\n    {\n        \$row = \$this->database->table('{$table}')->where('id', '=', (int) \$params['id'])->first();\n        if (\$row === null) return Response::notFound();\n        return view('{$viewDir}/form.php', ['title' => '{$name}', 'row' => \$row, 'errors' => [], 'readonly' => true]);\n    }\n\n    /** @param array<string,string> \$params */\n    public function create(Request \$request, array \$params): Response\n    {\n        return view('{$viewDir}/form.php', ['title' => 'New {$name}', 'row' => null, 'errors' => [], 'readonly' => false]);\n    }\n\n    /** @param array<string,string> \$params */\n    public function store(Request \$request, array \$params): Response\n    {\n        try {\n            \$input = (new Validator())->validate(['name' => (string) \$request->input('name')], self::RULES);\n        } catch (\\Dizge\\Validation\\ValidationException \$exception) {\n            return view('{$viewDir}/form.php', ['title' => 'New {$name}', 'row' => ['name' => \$request->input('name')], 'errors' => \$exception->errors()->all(), 'readonly' => false]);\n        }\n        \$now = gmdate('c');\n        \$id = \$this->database->table('{$table}')->insert(['name' => \$input['name'], 'created_at' => \$now, 'updated_at' => \$now]);\n        return Response::redirect('/{$route}/' . \$id);\n    }\n\n    /** @param array<string,string> \$params */\n    public function edit(Request \$request, array \$params): Response\n    {\n        \$row = \$this->database->table('{$table}')->where('id', '=', (int) \$params['id'])->first();\n        if (\$row === null) return Response::notFound();\n        return view('{$viewDir}/form.php', ['title' => 'Edit {$name}', 'row' => \$row, 'errors' => [], 'readonly' => false]);\n    }\n\n    /** @param array<string,string> \$params */\n    public function update(Request \$request, array \$params): Response\n    {\n        try {\n            \$input = (new Validator())->validate(['name' => (string) \$request->input('name')], self::RULES);\n        } catch (\\Dizge\\Validation\\ValidationException \$exception) {\n            \$row = ['id' => \$params['id'], 'name' => \$request->input('name')];\n            return view('{$viewDir}/form.php', ['title' => 'Edit {$name}', 'row' => \$row, 'errors' => \$exception->errors()->all(), 'readonly' => false]);\n        }\n        \$updated = \$this->database->table('{$table}')->where('id', '=', (int) \$params['id'])->update(['name' => \$input['name'], 'updated_at' => gmdate('c')]);\n        if (\$updated === 0) return Response::notFound();\n        return Response::redirect('/{$route}/' . \$params['id']);\n    }\n\n    /** @param array<string,string> \$params */\n    public function destroy(Request \$request, array \$params): Response\n    {\n        \$deleted = \$this->database->table('{$table}')->where('id', '=', (int) \$params['id'])->delete();\n        if (\$deleted === 0) return Response::notFound();\n        return Response::redirect('/{$route}');\n    }\n}\n");
+
+            $migrationFile = $root . '/database/migrations/' . gmdate('YmdHi') . '_create_' . $table . '.php';
+            $upStatement = "\$database->pdo()->exec('CREATE TABLE {$table} (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)');";
+            $downStatement = "\$database->pdo()->exec('DROP TABLE IF EXISTS {$table}');";
+            writeGenerated($migrationFile, migrationTemplate(basename($migrationFile, '.php'), $upStatement, $downStatement));
+
+            $indexViewPath = $root . '/views/' . $viewDir . '/index.php';
+            writeGenerated($indexViewPath, "<?php\n/** @var list<array<string,mixed>> \$rows */\n?>\n<!doctype html>\n<html lang=\"en\">\n  <head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title><?= e(\$title) ?></title></head>\n  <body>\n    <main>\n      <h1><?= e(\$title) ?></h1>\n      <p><a href=\"/{$route}/create\">New {$name}</a></p>\n      <?= dv('data-table', columns: ['id', 'name', 'created_at'], rows: \$rows, label: \$title) ?>\n      <ul>\n        <?php foreach (\$rows as \$row): ?>\n          <li>\n            <a href=\"/{$route}/<?= e((string) \$row['id']) ?>/edit\">Edit #<?= e((string) \$row['id']) ?></a>\n            <form method=\"post\" action=\"/{$route}/<?= e((string) \$row['id']) ?>/delete\" style=\"display:inline\">\n              <?= csrf_field() ?>\n              <button type=\"submit\">Delete</button>\n            </form>\n          </li>\n        <?php endforeach; ?>\n      </ul>\n    </main>\n    <?= dv_scripts() ?>\n  </body>\n</html>\n");
+
+            $formViewPath = $root . '/views/' . $viewDir . '/form.php';
+            writeGenerated($formViewPath, "<?php\n/** @var array<string,mixed>|null \$row @var array<string,list<string>> \$errors @var bool \$readonly */\n\$row ??= [];\n\$errors ??= [];\n\$readonly ??= false;\n\$isNew = !isset(\$row['id']);\n\$action = \$isNew ? '/{$route}' : '/{$route}/' . (int) \$row['id'];\n?>\n<!doctype html>\n<html lang=\"en\">\n  <head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title><?= e(\$title) ?></title></head>\n  <body>\n    <main>\n      <h1><?= e(\$title) ?></h1>\n      <?php if (\$errors !== []): ?>\n        <ul>\n          <?php foreach (\$errors as \$field => \$messages): foreach ((array) \$messages as \$message): ?>\n            <li><?= e((string) \$field) ?>: <?= e((string) \$message) ?></li>\n          <?php endforeach; endforeach; ?>\n        </ul>\n      <?php endif; ?>\n      <form method=\"post\" action=\"<?= e(\$action) ?>\">\n        <?= csrf_field() ?>\n        <?= dv('field', id: 'name', name: 'name', label: 'Name', control: 'input', type: 'text', value: (string) (\$row['name'] ?? ''), placeholder: 'Name', required: true, disabled: \$readonly, error: implode(' ', \$errors['name'] ?? [])) ?>\n        <?php if (!\$readonly): ?><button type=\"submit\"><?= \$isNew ? 'Create' : 'Save' ?></button><?php endif; ?>\n      </form>\n      <?php if (!\$isNew && !\$readonly): ?>\n        <form method=\"post\" action=\"/{$route}/<?= (int) \$row['id'] ?>/delete\">\n          <?= csrf_field() ?>\n          <button type=\"submit\">Delete</button>\n        </form>\n      <?php endif; ?>\n      <p><a href=\"/{$route}\">Back to {$table}</a></p>\n    </main>\n    <?= dv_scripts() ?>\n  </body>\n</html>\n");
+
+            echo "Created app/Http/Controllers/{$class}.php\n";
+            echo 'Created database/migrations/' . basename($migrationFile) . "\n";
+            echo "Created views/{$viewDir}/index.php\n";
+            echo "Created views/{$viewDir}/form.php\n";
+            echo "\nPaste into routes/services.php:\n\n";
+            echo "app()->container()->singleton({$class}::class, fn (Dizge\\Container \$container): {$class} => new {$class}(db()));\n";
+            echo "\nPaste into routes/web.php:\n\n";
+            echo "app()->get('/{$route}', [{$class}::class, 'index']);\n";
+            echo "app()->get('/{$route}/create', [{$class}::class, 'create']);\n";
+            echo "app()->post('/{$route}', [{$class}::class, 'store']);\n";
+            echo "app()->get('/{$route}/{id}', [{$class}::class, 'show']);\n";
+            echo "app()->get('/{$route}/{id}/edit', [{$class}::class, 'edit']);\n";
+            echo "app()->post('/{$route}/{id}', [{$class}::class, 'update']);\n";
+            echo "app()->post('/{$route}/{id}/delete', [{$class}::class, 'destroy']);\n";
+            echo "\nThen: php bin/dizge migrate up\n";
+            break;
         case 'module:enable':
             $name = (string) $argument; if (!in_array($name, ['cache', 'jobs', 'mail', 'api_tokens'], true)) throw new InvalidArgumentException('Unknown official module.');
             $path = $root . '/config/modules.local.php'; $current = is_file($path) ? require $path : []; $current[$name] = true;
@@ -90,6 +220,12 @@ try {
         case 'job:work':
             $count = max(1, min(100, (int) ($argument ?? 1))); $worker = new Worker(app()->container()->get(FileQueue::class), app()->container()->get(JobRegistry::class)); $worked = 0;
             while ($worked < $count && $worker->runOnce()) $worked++; echo "Processed {$worked} job(s).\n"; break;
+        case 'cache:gc':
+            $purged = cache()->gc();
+            echo "Purged {$purged} expired cache entr" . ($purged === 1 ? 'y' : 'ies') . ".\n";
+            $rotated = cms_audit()->rotateIfNeeded();
+            echo $rotated === null ? "Audit log under rotation threshold.\n" : "Rotated audit log to " . basename($rotated) . "\n";
+            break;
         case 'token:issue':
             $subject = (string) ($argv[2] ?? ''); $name = (string) ($argv[3] ?? ''); $abilities = isset($argv[4]) ? explode(',', $argv[4]) : ['*'];
             if ($subject === '' || $name === '') throw new InvalidArgumentException('Usage: token:issue subject name [ability,...]');
