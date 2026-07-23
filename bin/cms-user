@@ -1,0 +1,21 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require dirname(__DIR__) . '/dizge.php';
+
+$command = $argv[1] ?? '';
+$role = $argv[2] ?? '';
+$email = strtolower(trim((string) ($argv[3] ?? '')));
+$password = getenv('DIZGE_USER_PASSWORD');
+if ($command !== 'create' || !in_array($role, Dizge\Cms\Policy::roles(), true) || !filter_var($email, FILTER_VALIDATE_EMAIL) || $password === false || strlen($password) < 12) {
+    throw new InvalidArgumentException('Usage: DIZGE_USER_PASSWORD="at-least-12-chars" bin/cms-user create author|reviewer|publisher|admin user@example.com');
+}
+$statement = db()->pdo()->prepare('INSERT INTO users (email, password_hash, role, created_at) VALUES (?, ?, ?, ?)');
+try {
+    $statement->execute([$email, password_hash($password, PASSWORD_DEFAULT), $role, gmdate('c')]);
+} catch (PDOException $exception) {
+    throw new RuntimeException('User could not be created. Use a unique email and run migrations first.', 0, $exception);
+}
+echo "{$role} created for {$email}.\n";

@@ -1,0 +1,74 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# docs/kayaeos-agent-swarm.md defines the project's own release/verification gate as
+# `bin/dizge verify` + `bin/dizge benchmark --check`; this workflow only automates running that
+# gate on every push/PR instead of relying on the manual pre-release checklist in
+# docs/releasing.md. See docs/deployment.md for what the `assets` job below is checking and why.
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: pdo_sqlite, sqlite3
+
+      - name: Verify (PHP lint + core/security/data/auth/bridge/full-stack tests)
+        run: sh bin/verify
+
+      - name: Benchmark regression gate (median of 5 samples, 15% budget)
+        env:
+          DIZGE_BENCHMARK_CI: '1'
+        run: sh bin/benchmark --check
+
+  assets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: dizgephp
+
+      - uses: actions/checkout@v4
+        with:
+          repository: kayacuneyd/devinimjs
+          path: devinimjs
+
+      - uses: actions/checkout@v4
+        with:
+          repository: kayacuneyd/ckcss
+          path: ckcss
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: devinimjs/package-lock.json
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+
+      - name: Build DevinimJS dist
+        working-directory: devinimjs
+        run: |
+          npm ci
+          npm run build
+
+      - name: bin/publish-assets (real script, sibling checkouts as inputs)
+        working-directory: dizgephp
+        env:
+          DEVINIM_DIST: ${{ github.workspace }}/devinimjs/dist
+          CKCSS_ASSETS: ${{ github.workspace }}/ckcss/site/assets
+        run: bash bin/publish-assets
+
+      - name: assets:check (Renderer::COMPONENTS <-> published files parity)
+        working-directory: dizgephp
+        run: php bin/dizge assets:check

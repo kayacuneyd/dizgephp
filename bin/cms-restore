@@ -1,0 +1,17 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+$root = dirname(__DIR__);
+$directory = realpath($root . '/storage/backups');
+$sourceArg = $argv[1] ?? '';
+if (($argv[2] ?? '') !== '--force' || $directory === false) throw new InvalidArgumentException('Usage: bin/cms-restore storage/backups/dizgecms-YYYYmmdd-HHMMSS.sqlite --force');
+$source = realpath($sourceArg);
+if ($source === false || !str_starts_with($source, $directory . '/') || !preg_match('/^dizgecms-[0-9]{8}-[0-9]{6}\.sqlite$/', basename($source))) throw new InvalidArgumentException('Restore source must be a retained DizgeCMS backup.');
+$target = $root . '/storage/app.sqlite';
+$from = new SQLite3($source, SQLITE3_OPEN_READONLY);
+$to = new SQLite3($target, SQLITE3_OPEN_READWRITE | SQLITE3_OPEN_CREATE);
+if (!$from->backup($to)) throw new RuntimeException('SQLite restore failed.');
+$from->close(); $to->close();
+echo "Restored {$source}.\n";

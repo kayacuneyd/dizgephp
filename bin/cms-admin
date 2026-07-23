@@ -1,0 +1,21 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require dirname(__DIR__) . '/dizge.php';
+
+$command = $argv[1] ?? '';
+$email = strtolower(trim((string) ($argv[2] ?? '')));
+$password = getenv('DIZGE_ADMIN_PASSWORD');
+if ($command !== 'create' || !filter_var($email, FILTER_VALIDATE_EMAIL) || $password === false || strlen($password) < 12) {
+    throw new InvalidArgumentException('Usage: DIZGE_ADMIN_PASSWORD="at-least-12-chars" bin/cms-admin create admin@example.com');
+}
+
+$statement = db()->pdo()->prepare('INSERT INTO users (email, password_hash, role, created_at) VALUES (?, ?, ?, ?)');
+try {
+    $statement->execute([$email, password_hash($password, PASSWORD_DEFAULT), 'admin', gmdate('c')]);
+} catch (PDOException $exception) {
+    throw new RuntimeException('Admin could not be created. Run migrations first and use a unique email.', 0, $exception);
+}
+echo "Admin created for {$email}.\n";

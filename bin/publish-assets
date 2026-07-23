@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# No explicit versioning step is needed here: `install` (unlike `cp -p`) always sets the
+# destination file's mtime to now, on every run, regardless of whether the content actually
+# changed. That is exactly what Dizge\Devinim\Renderer::versionedUrl() reads to cache-bust
+# `dv_scripts()` output against the long, immutable Cache-Control that public/.htaccess sets on
+# /assets/** — see docs/deployment.md's "Caching self-hosted assets".
+project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+devinim_dist="${DEVINIM_DIST:-/var/www/devinimjs/dist}"
+ckcss_assets="${CKCSS_ASSETS:-/var/www/ckcss/site/assets}"
+public_assets="$project_root/public/assets"
+
+test -f "$devinim_dist/core.min.js"
+test -f "$devinim_dist/authoring.min.js"
+test -d "$devinim_dist/modules"
+test -f "$devinim_dist/devinim-ckcss.css"
+test -f "$ckcss_assets/ckcss.min.css"
+
+install -d "$public_assets/devinim/modules" "$public_assets/demo"
+install -m 0644 "$project_root/assets/dizge-bridge.js" "$public_assets/dizge-bridge.js"
+install -m 0644 "$project_root/assets/dv-rich-editor.js" "$public_assets/demo/dv-rich-editor.js"
+install -m 0644 "$project_root/assets/dizgecms.css" "$public_assets/dizgecms.css"
+install -m 0644 "$project_root/assets/dizgecms-mark.svg" "$public_assets/dizgecms-mark.svg"
+install -m 0644 "$ckcss_assets/ckcss.min.css" "$public_assets/ckcss.min.css"
+# core.min.js is the runtime every class-API component module imports (`../core.min.js`);
+# authoring.min.js is what factory-API modules (e.g. dv-counter, dv-search) import instead —
+# both are required, not just one, or most published components 404 on their own import.
+install -m 0644 "$devinim_dist/core.min.js" "$public_assets/devinim/core.min.js"
+install -m 0644 "$devinim_dist/authoring.min.js" "$public_assets/devinim/authoring.min.js"
+install -m 0644 "$devinim_dist/devinim-ckcss.css" "$public_assets/devinim/devinim-ckcss.css"
+
+# Publish every built component module, not just dv-counter, so Renderer::COMPONENTS
+# (src/Dizge/Devinim/Renderer.php) and the files actually served under
+# /assets/devinim/modules/ stay in sync. `bin/dizge assets:check` verifies this pairing.
+module_count=0
+for module in "$devinim_dist"/modules/*.js; do
+  install -m 0644 "$module" "$public_assets/devinim/modules/$(basename "$module")"
+  module_count=$((module_count + 1))
+done
+if [ "$module_count" -eq 0 ]; then
+  printf 'No DevinimJS component modules found in %s/modules\n' "$devinim_dist" >&2
+  exit 1
+fi
+
+printf 'Published DizgeCMS, CKCSS and DevinimJS assets (%d component modules).\n' "$module_count"
