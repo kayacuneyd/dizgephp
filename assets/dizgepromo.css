@@ -13,6 +13,11 @@
     justify-content: space-between;
     min-block-size: 4rem;
   }
+  .dp-nav-actions {
+    align-items: center;
+    display: flex;
+    gap: .5rem;
+  }
   .dp-brand {
     color: var(--ck-color-text);
     font-family: var(--ck-font-display);
@@ -31,6 +36,11 @@
     list-style: none;
     margin: 0;
     padding: 0;
+  }
+  @media (min-width: 48.0625rem) {
+    .dp-nav-links[hidden] {
+      display: flex;
+    }
   }
   .dp-nav-links a {
     border-radius: var(--ck-radius-sm);
@@ -62,6 +72,23 @@
     transition: background var(--ck-duration-fast) var(--ck-ease-standard);
   }
   .dp-theme-toggle:hover {
+    background: var(--ck-color-surface-muted);
+  }
+  .dp-menu-toggle {
+    background: var(--ck-color-surface);
+    border: 1px solid var(--ck-color-border);
+    border-radius: var(--ck-radius-sm);
+    color: var(--ck-color-text);
+    cursor: pointer;
+    display: none;
+    font: inherit;
+    font-size: .9rem;
+    font-weight: 700;
+    min-block-size: 2.25rem;
+    padding-inline: .7rem;
+  }
+  .dp-menu-toggle:hover,
+  .dp-menu-toggle:focus-visible {
     background: var(--ck-color-surface-muted);
   }
 
@@ -376,25 +403,44 @@
 
   @media (max-width: 48rem) {
     .dp-nav {
-      flex-wrap: wrap;
+      gap: .75rem;
+      min-block-size: 4.25rem;
+      position: relative;
     }
     .dp-nav-links {
-      order: 1;
-      gap: 0;
+      background: var(--ck-color-surface);
+      border-block-end: 1px solid var(--ck-color-border);
+      border-block-start: 1px solid var(--ck-color-border);
+      box-shadow: 0 .75rem 1.5rem rgb(0 0 0 / .08);
+      display: grid;
+      gap: .15rem;
+      inset-block-start: 100%;
+      inset-inline: 0;
+      padding: .5rem 0;
+      position: absolute;
+      z-index: 1;
+    }
+    .dp-nav-links[hidden] {
+      display: none;
+    }
+    .dp-nav-links li {
       inline-size: 100%;
-      overflow-x: auto;
     }
     .dp-nav-links a {
-      padding: .45rem .65rem;
-      font-size: .85rem;
+      font-size: .95rem;
+      padding: .7rem .75rem;
     }
-    .dp-theme-toggle {
-      margin-inline-start: auto;
+    .dp-menu-toggle {
+      display: inline-flex;
+      align-items: center;
     }
     .dp-footer .ck-cluster {
       gap: 1rem;
       justify-content: center;
       text-align: center;
+    }
+    .dp-footer-links {
+      justify-content: center;
     }
   }
 }

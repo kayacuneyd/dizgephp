@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use Dizge\Cms\ContactSubmissionRepository;
 use Dizge\Http\Request;
 use Dizge\Mail\Mailer;
 use Dizge\Mail\Message;
@@ -12,7 +13,7 @@ use Dizge\Validation\Validator;
 final class SendContactMail
 {
     /** @param list<string> $recipients */
-    public function __construct(private Mailer $mailer, private array $recipients) {}
+    public function __construct(private Mailer $mailer, private array $recipients, private ContactSubmissionRepository $submissions) {}
 
     /** @return array<string, mixed> */
     public function execute(Request $request): array
@@ -37,6 +38,7 @@ final class SendContactMail
         foreach ($this->recipients as $recipient) {
             $this->mailer->send(new Message($recipient, "[DizgePHP] {$input['subject']}", $body));
         }
+        $this->submissions->record($input);
 
         return $input;
     }

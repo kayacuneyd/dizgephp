@@ -15,6 +15,8 @@ use Dizge\Mail\Mailer;
 use Dizge\Mail\NativeTransport;
 use Dizge\Mail\Message;
 use Dizge\Mail\QueuedMailer;
+use Dizge\Cms\ExtensionRegistry;
+use Dizge\Cms\ContactSubmissionRepository;
 use Dizge\Security\ApiTokenStore;
 
 app()->container()->singleton(FrameworkStatus::class, fn (Dizge\Container $container): FrameworkStatus => new FrameworkStatus(app()));
@@ -43,6 +45,7 @@ app()->container()->singleton(PromoController::class, function (Dizge\Container 
 app()->container()->singleton(SendContactMail::class, fn (Dizge\Container $container): SendContactMail => new SendContactMail(
     $container->get(Mailer::class),
     ['kayacuneyd@gmail.com', 'info@kayacuneyt.com'],
+    new ContactSubmissionRepository(db(), (int) (getenv('DIZGECMS_CONTACT_RETENTION_DAYS') ?: 30)),
 ));
 
 app()->container()->singleton(ContactController::class, fn (Dizge\Container $container): ContactController => new ContactController($container->get(SendContactMail::class)));
@@ -56,3 +59,5 @@ app()->container()->singleton(ApiTokenStore::class, fn (Dizge\Container $contain
 app()->container()->get(JobRegistry::class)->register('mail.send', function (array $payload): void {
     app()->container()->get(Mailer::class)->send(Message::fromArray($payload));
 });
+app()->container()->singleton(ExtensionRegistry::class, fn (Dizge\Container $container): ExtensionRegistry => new ExtensionRegistry(app()->basePath()));
+app()->container()->get(ExtensionRegistry::class)->boot();

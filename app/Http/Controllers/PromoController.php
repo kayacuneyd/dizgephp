@@ -62,6 +62,11 @@ final class PromoController extends Controller
         return view('promo/download.php', []);
     }
 
+    /** @param array<string,string> $params */ public function features(Request $request, array $params): Response { return view('promo/features.php', []); }
+    /** @param array<string,string> $params */ public function headless(Request $request, array $params): Response { return view('promo/headless.php', []); }
+    /** @param array<string,string> $params */ public function installGuide(Request $request, array $params): Response { return view('promo/install-guide.php', []); }
+    /** @param array<string,string> $params */ public function migrateWordpress(Request $request, array $params): Response { return view('promo/migrate-wordpress.php', []); }
+
     /** @param array<string,string> $params */
     public function about(Request $request, array $params): Response
     {

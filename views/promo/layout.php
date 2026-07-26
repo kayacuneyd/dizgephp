@@ -34,6 +34,7 @@
   <script>
     (function(){var t=localStorage.getItem('ck-theme');if(t)document.documentElement.dataset.ckTheme=t;})();
     function toggleTheme(){var d=document.documentElement;var c=d.dataset.ckTheme==='dark'?'light':'dark';d.dataset.ckTheme=c;localStorage.setItem('ck-theme',c);}
+    function toggleMenu(){var menu=document.getElementById('primary-navigation');var button=document.querySelector('.dp-menu-toggle');if(!menu||!button)return;var open=button.getAttribute('aria-expanded')==='true';button.setAttribute('aria-expanded',String(!open));menu.hidden=open;}
   </script>
 </head>
 <body>
@@ -42,14 +43,20 @@
     <div class="ck-container">
       <nav class="dp-nav" aria-label="Ana menü">
         <a href="/" class="dp-brand">Dizge<span>CMS</span></a>
-        <ul class="dp-nav-links">
+        <div class="dp-nav-actions">
+          <button class="dp-menu-toggle" type="button" aria-controls="primary-navigation" aria-expanded="false" onclick="toggleMenu()">Menü</button>
+          <button class="dp-theme-toggle" onclick="toggleTheme()" aria-label="Karanlık modu aç/kapat" title="Tema değiştir">&#9790;</button>
+        </div>
+        <ul id="primary-navigation" class="dp-nav-links" hidden>
+          <li><a href="/features"<?= $active === 'features' ? ' aria-current="page"' : '' ?>>Özellikler</a></li>
+          <li><a href="/headless"<?= $active === 'headless' ? ' aria-current="page"' : '' ?>>Headless</a></li>
+          <li><a href="/install-guide"<?= $active === 'install' ? ' aria-current="page"' : '' ?>>Kurulum</a></li>
           <li><a href="/docs"<?= $active === 'docs' ? ' aria-current="page"' : '' ?>>Doküman</a></li>
           <li><a href="/tutorials"<?= $active === 'tutorials' ? ' aria-current="page"' : '' ?>>Eğitim</a></li>
           <li><a href="/download"<?= $active === 'download' ? ' aria-current="page"' : '' ?>>İndir</a></li>
           <li><a href="/about"<?= $active === 'about' ? ' aria-current="page"' : '' ?>>Hakkında</a></li>
           <li><a href="/contact"<?= $active === 'contact' ? ' aria-current="page"' : '' ?>>İletişim</a></li>
         </ul>
-        <button class="dp-theme-toggle" onclick="toggleTheme()" aria-label="Karanlık modu aç/kapat" title="Tema değiştir">&#9790;</button>
       </nav>
     </div>
   </header>

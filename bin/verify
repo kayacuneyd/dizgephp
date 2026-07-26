@@ -13,6 +13,12 @@ php tests/auth_test.php
 php tests/validation_rate_test.php
 php tests/login_test.php
 php tests/cms_test.php
+php tests/headless_domain_test.php
+php tests/headless_api_contract_test.php
+php tests/headless_api_security_test.php
+php tests/headless_preview_security_test.php
+php tests/installer_test.php
+php tests/release_package_test.php
 php tests/bridge_test.php
 php tests/global_rate_limit_test.php
 php tests/make_resource_test.php

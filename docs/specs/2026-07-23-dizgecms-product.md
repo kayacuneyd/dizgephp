@@ -21,11 +21,17 @@ The first public product page is `https://dizgecms.digitaltamam.com`.
 - Starter theme contract and the DizgeCMS promotional site.
 - WordPress REST/WXR import with published URL and metadata preservation.
 - Technical SEO, structured data, public context and regional entity foundations.
+- Hybrid headless MVP: versioned public REST contract plus a DevinimJS starter frontend;
+  classic Studio/theme publishing remains supported.
 
 ## Next
 
-- Plugin/theme management UI, install wizard, backup UI, analytics and marketplace packaging.
-- Multi-site SaaS, WordPress plugin/theme compatibility and PHP sandboxing remain out of scope.
+The productization sequence is documented in
+`docs/dizgecms-wordpress-alternative-roadmap.md`: installer/default site and headless API
+contract first, then site settings/menus, media library/editor, DevinimJS starter, theme
+management, users/roles, and release/update packaging.
+Plugin/theme management UI and backup UI are included in that sequence; analytics is deferred.
+Multi-site SaaS, WordPress plugin/theme compatibility and PHP sandboxing remain out of scope.
 
 ## Stack Direction
 

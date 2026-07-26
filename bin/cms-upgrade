@@ -1,0 +1,19 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+// Code deployment is deliberately outside this command. It upgrades the already reviewed
+// checkout only: create a recoverable SQLite snapshot, then apply its migrations.
+$root = dirname(__DIR__);
+if (($argv[1] ?? '') !== '--yes') {
+    throw new InvalidArgumentException('Usage: bin/cms-upgrade --yes (backs up SQLite, then applies pending migrations)');
+}
+
+$backup = $root . '/bin/cms-backup';
+$migrate = $root . '/bin/dizge';
+passthru(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($backup), $backupStatus);
+if ($backupStatus !== 0) throw new RuntimeException('Upgrade stopped: backup failed.');
+passthru(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($migrate) . ' migrate up', $migrationStatus);
+if ($migrationStatus !== 0) throw new RuntimeException('Upgrade stopped: migrations failed; restore the backup printed above with bin/cms-restore … --force.');
+echo "Upgrade database step complete. Verify before exposing the deployment.\n";

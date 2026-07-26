@@ -88,6 +88,9 @@ final class Application
     public static function boot(string $basePath): void
     {
         if (self::$instance === null) {
+            if (getenv('DIZGE_ENV') === 'production' && (getenv('DIZGECMS_PREVIEW_SECRET') === false || getenv('DIZGECMS_PREVIEW_SECRET') === '')) {
+                throw new \LogicException('DIZGECMS_PREVIEW_SECRET must be configured in production.');
+            }
             self::$instance = new self($basePath, getenv('DIZGE_DEBUG') === '1');
         }
     }
