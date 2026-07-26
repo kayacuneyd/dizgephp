@@ -1,8 +1,10 @@
-# DizgePHP
+# DizgeCMS
 
-Build-free PHP 8.1+ full-stack framework for shared hosting. DizgePHP owns HTTP, server rendering,
+Build-free PHP 8.1+ plugin-ready CMS on the DizgePHP full-stack framework. DizgeCMS owns publishing,
 security and data; CKCSS owns presentation; DevinimJS owns browser interaction. It works from a
 tagged Git checkout or a GitHub Release ZIP—Composer and Node.js are optional, not required.
+
+**Product specification:** [DizgeCMS product spec](docs/specs/2026-07-23-dizgecms-product.md)
 
 **Documentation:** [getting started](docs/getting-started.md) · [architecture](docs/architecture.md)
 · [deployment](docs/deployment.md) · [security](docs/security-baseline.md) ·
@@ -100,12 +102,24 @@ The reference workflow CMS is served below `/demo`. It uses the app-local SQLite
 administrator without placing credentials in source control:
 
 ```bash
+DIZGE_ADMIN_PASSWORD='choose-a-long-unique-password' bin/dizge install admin@example.com
+```
+
+Create a distributable release package with `bash bin/package-release 0.1.0`; see
+[`docs/release-package.md`](docs/release-package.md).
+
+KA Teknoloji reference content is optional and is never included in migrations: after installation,
+run `php bin/cms-demo-seed ka-teknoloji` if you explicitly want that example.
+
+For manual control, initialize it with:
+
+```bash
 bin/migrate up
 DIZGE_ADMIN_PASSWORD='choose-a-long-unique-password' bin/cms-admin create admin@example.com
 bin/publish-assets
 ```
 
-Studio is at `/demo/studio`; public pages and articles are exposed only after the explicit
+Studio is at /studio; public pages and articles are exposed only after the explicit
 `draft → review → approved → published` workflow.
 
 Daily SQLite snapshots run at 03:17 UTC and retain 14 copies under `storage/backups/`. Create a
@@ -158,3 +172,19 @@ gate()->define('article.update', fn (Identity $user, array $article) => $user->i
 
 CSRF validation is global for state-changing browser routes; use `<?= csrf_field() ?>` in every form. Read the
 [authentication threat model](docs/auth-threat-model.md) before adding a login flow.
+
+## Product-facing CMS paths
+
+The canonical product paths are /studio, /admin, /pages and /articles; the existing /demo paths
+remain available as backward-compatible reference routes. WordPress WXR imports can be previewed before
+writing:
+
+    bin/cms-import-wxr export.xml --dry-run
+    bin/cms-import-wxr export.xml
+
+The import keeps supported page/post content, creates safe native drafts or published workflow
+states, and skips unsupported WordPress post types. WordPress plugin/theme execution is not
+supported; use the versioned local plugin/theme contracts under plugins/ and themes/.
+
+Add --download-media only when remote HTTPS media should be copied into private CMS storage.
+Review the dry-run output and read docs/import-threat-model.md before a production import.

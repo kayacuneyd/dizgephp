@@ -36,4 +36,30 @@ final class MediaStorage
         if (!preg_match('/^[a-f0-9]{32}\.(jpg|png|webp|gif)$/', $storedName)) throw new \InvalidArgumentException('Invalid stored media name.');
         return $this->directory . '/' . $storedName;
     }
+
+    /** Remove a media file only after its database record was proven unreferenced and deleted. */
+    public function delete(string $storedName): void
+    {
+        $path = $this->path($storedName);
+        if (is_file($path) && !unlink($path)) throw new \RuntimeException('The unreferenced media file could not be removed.');
+    }
+
+    /** @return array{stored_name:string,mime:string,size:int,original_name:string} */
+    public function storeBytes(string $bytes, string $originalName): array
+    {
+        $size = strlen($bytes);
+        if ($size < 1 || $size > 5 * 1024 * 1024) throw new \InvalidArgumentException('Imported images must be between 1 byte and 5 MB.');
+        $temporary = tempnam($this->directory, 'import-');
+        if ($temporary === false || file_put_contents($temporary, $bytes, LOCK_EX) === false) throw new \RuntimeException('Imported image could not be staged.');
+        try {
+            $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($temporary);
+            if (!is_string($mime) || !isset(self::TYPES[$mime]) || @getimagesize($temporary) === false) throw new \InvalidArgumentException('Imported bytes are not a supported image.');
+            $stored = bin2hex(random_bytes(16)) . '.' . self::TYPES[$mime];
+            if (!rename($temporary, $this->directory . '/' . $stored)) throw new \RuntimeException('Imported image could not be stored.');
+            chmod($this->directory . '/' . $stored, 0640);
+            return ['stored_name' => $stored, 'mime' => $mime, 'size' => $size, 'original_name' => basename($originalName)];
+        } finally {
+            if (is_file($temporary)) unlink($temporary);
+        }
+    }
 }

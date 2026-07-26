@@ -77,6 +77,11 @@
   .dc-media-panel input[type="file"] { max-inline-size: 100%; }
   .dc-rich-text img { block-size: auto; display: block; margin-block: 1.5rem; max-inline-size: 100%; }
   .dc-diff { color: #536170; font-size: .9rem; line-height: 1.45; }
+  .dc-diff-list { display: grid; gap: .25rem .75rem; grid-template-columns: max-content minmax(0, 1fr); margin: .75rem 0 0; }
+  .dc-diff-list dt { font-weight: 700; }
+  .dc-diff-list dd { margin: 0; }
+  .dc-diff-list del { color: #9b1c1c; }
+  .dc-diff-list ins { color: #166534; }
   .dc-error { color: #a32222; }
   .dc-preview-note { background: var(--dc-mint); padding-block: .8rem; }
   .dc-two-column { display: grid; gap: 2rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }

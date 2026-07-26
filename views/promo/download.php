@@ -1,0 +1,8 @@
+<?php declare(strict_types=1); $title='DizgeCMS indir'; $description='DizgeCMS release paketini indirin, SHA-256 doğrulayın ve tek komutla kurun.'; $active='download'; ob_start(); ?>
+<section class="dp-section"><div class="ck-container ck-stack" style="--ck-stack-space:2rem">
+<header class="dp-section-header"><p class="dp-kicker">İNDİR</p><h1>DizgeCMS 0.2.0</h1><p>Shared hosting için açık kaynak, build-free hybrid CMS. PHP 8.1+, SQLite ve <code>public/</code> document root yeterli.</p></header>
+<div class="ck-grid ck-grid--2"><article class="dp-feature-card ck-stack"><h2>Yerel deneme için ZIP</h2><p>Windows, macOS ve Linux’ta doğrudan açın. Public asset’ler pakete dahildir.</p><div class="ck-cluster"><a class="ck-button" href="/releases/dizgecms-0.2.0.zip">ZIP indir</a><a class="ck-button ck-button--secondary" href="/releases/dizgecms-0.2.0.zip.sha256">SHA-256</a></div></article><article class="dp-feature-card ck-stack"><h2>Sunucu paketi</h2><p>Shared hosting veya VPS için tar.gz paketi.</p><div class="ck-cluster"><a class="ck-button ck-button--secondary" href="/releases/dizgecms-0.2.0.tar.gz">tar.gz indir</a><a class="ck-button ck-button--secondary" href="/releases/dizgecms-0.2.0.tar.gz.sha256">SHA-256</a></div></article></div>
+<div class="dp-code-block"><code>sha256sum -c dizgecms-0.2.0.tar.gz.sha256<br>tar -xzf dizgecms-0.2.0.tar.gz<br>cd dizgecms<br>DIZGE_ADMIN_PASSWORD='güçlü-parola' php bin/dizge install admin@example.com</code></div>
+<p class="ck-text-muted">Kurulumdan sonra Studio: <code>/studio</code>. Temiz sistemde güvenlik kilitli web installer da kullanılabilir.</p>
+</div></section>
+<?php $slot=ob_get_clean(); require __DIR__.'/layout.php';

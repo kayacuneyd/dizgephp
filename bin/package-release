@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+version="${1:-dev}"
+target="$root/dist/dizgecms-${version}.tar.gz"
+zip_target="$root/dist/dizgecms-${version}.zip"
+stage="$(mktemp -d)"
+trap 'rm -rf "$stage"' EXIT
+mkdir -p "$root/dist"
+test ! -e "$target"
+test ! -e "$zip_target"
+mkdir "$stage/dizgecms"
+tar -C "$root" -cf - --exclude='.git' --exclude='storage' --exclude='dist' --exclude='.agents' --exclude='.codex' --exclude='.claude' --exclude='.cursor' --exclude='config/cms.local.php' --exclude='.env' . | tar -C "$stage/dizgecms" -xf -
+tar -C "$stage" -czf "$target" dizgecms
+(cd "$stage" && zip -qr "$zip_target" dizgecms)
+(cd "$root/dist" && sha256sum "$(basename "$target")" > "$(basename "$target").sha256" && sha256sum "$(basename "$zip_target")" > "$(basename "$zip_target").sha256")
+printf '%s\n%s\n%s\n%s\n' "$target" "$target.sha256" "$zip_target" "$zip_target.sha256"

@@ -4,6 +4,8 @@
 
 DizgePHP is a PHP 8.1+ application framework for shared hosting. CKCSS owns presentation,
 DevinimJS owns browser interaction, and DizgePHP owns HTTP, server rendering, security and data.
+DizgeCMS is the reusable CMS product built on this framework; Baltık Postası is a reference
+application/theme and must not become a core dependency.
 
 ## Non-negotiable rules
 

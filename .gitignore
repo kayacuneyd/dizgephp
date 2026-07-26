@@ -2,4 +2,5 @@
 /vendor/
 .env
 /config/modules.local.php
+/config/cms.local.php
 /storage/

@@ -1,0 +1,56 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require dirname(__DIR__) . '/dizge.php';
+
+use Dizge\Cms\ContentRepository;
+use Dizge\Cms\MediaStorage;
+use Dizge\Cms\WxrImporter;
+
+$path = $argv[1] ?? '';
+$dryRun = in_array('--dry-run', $argv, true);
+$downloadMedia = in_array('--download-media', $argv, true);
+if ($path === '' || in_array($path, ['--help', '-h'], true)) {
+    fwrite(STDERR, "Usage: bin/cms-import-wxr path/to/export.xml [--dry-run] [--download-media]\n");
+    exit($path === '' ? 1 : 0);
+}
+
+$authorId = (int) db()->pdo()->query('SELECT id FROM users ORDER BY id LIMIT 1')->fetchColumn();
+if ($authorId < 1) throw new RuntimeException('Create an admin before importing content.');
+
+$repository = new ContentRepository(db());
+$mediaStorage = new MediaStorage(app()->basePath() . '/storage/media');
+$result = (new WxrImporter())->import($path, static function (array $record) use ($authorId, $repository): int {
+    $baseSlug = (string) $record['slug'];
+    $slug = $baseSlug;
+    $suffix = 2;
+    while ($repository->slugExists($slug)) $slug = $baseSlug . '-' . $suffix++;
+    $id = $repository->create([
+        'type' => $record['type'],
+        'title' => $record['title'],
+        'slug' => $slug,
+        'body_html' => $record['body_html'],
+        'meta_description' => $record['meta_description'],
+        'author_id' => $authorId,
+        'status' => $record['status'],
+        'published_at' => $record['published_at'],
+        'created_at' => $record['created_at'],
+    ]);
+    if ($slug !== $record['old_slug']) $repository->createRedirect((string) $record['type'], (string) $record['old_slug'], $id);
+    return $id;
+}, $dryRun, $downloadMedia && !$dryRun ? static function (array $media) use ($mediaStorage, $repository, $authorId): array {
+    $url = $media['url'];
+    $context = stream_context_create(['http' => ['timeout' => 10, 'follow_location' => 0], 'ssl' => ['verify_peer' => true, 'verify_peer_name' => true]]);
+    $handle = @fopen($url, 'rb', false, $context);
+    if ($handle === false) throw new RuntimeException('Media URL could not be opened: ' . $url);
+    $bytes = stream_get_contents($handle, 5 * 1024 * 1024 + 1);
+    fclose($handle);
+    if (!is_string($bytes)) throw new RuntimeException('Media bytes could not be read: ' . $url);
+    $stored = $mediaStorage->storeBytes($bytes, (string) $media['original_name']);
+    $repository->createMedia($stored, $authorId);
+    return $stored;
+} : null);
+
+echo json_encode($result, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) . "\n";

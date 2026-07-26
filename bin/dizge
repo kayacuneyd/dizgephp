@@ -15,6 +15,9 @@ use Dizge\Devinim\Renderer;
 use Dizge\Jobs\FileQueue;
 use Dizge\Jobs\JobRegistry;
 use Dizge\Jobs\Worker;
+use Dizge\Cms\ExtensionRegistry;
+use Dizge\Cms\ContentRepository;
+use Dizge\Cms\SiteRepository;
 use Dizge\Security\ApiTokenStore;
 
 $command = $argv[1] ?? 'help';
@@ -22,7 +25,7 @@ $argument = $argv[2] ?? null;
 
 /** @return never */
 function usage(int $status = 0): never {
-    echo "Dizge CLI\n\nCommands:\n  verify\n  benchmark\n  migrate [up|down]\n  route:list\n  inspect [--json|--markdown]\n  assets:check\n  make:controller Name\n  make:action Name\n  make:migration name\n  make:resource Name\n  module:enable cache|jobs|mail|api_tokens\n  job:work [count]\n  cache:gc\n  token:issue subject name [ability,...]\n";
+    echo "Dizge CLI\n\nCommands:\n  verify\n  benchmark\n  install [admin-email]\n  migrate [up|down]\n  publish:due\n  route:list\n  inspect [--json|--markdown]\n  assets:check\n  make:controller Name\n  make:action Name\n  make:migration name\n  make:resource Name\n  module:enable cache|jobs|mail|api_tokens\n  job:work [count]\n  cache:gc\n  token:issue subject name [ability,...]\n  plugin:list\n  plugin:enable ID\n  plugin:disable ID\n  theme:list\n  theme:use ID\n";
     exit($status);
 }
 
@@ -141,6 +144,19 @@ try {
             $migrator = new Migrator(db()); $migrations = Migrator::load($root . '/database/migrations');
             $ids = match ($argument ?? 'up') { 'up' => $migrator->migrate($migrations), 'down' => $migrator->rollback($migrations), default => throw new InvalidArgumentException('Usage: migrate [up|down]') };
             echo $ids === [] ? "No migrations to run.\n" : implode("\n", $ids) . "\n"; break;
+        case 'install':
+            (new Migrator(db()))->migrate(Migrator::load($root . '/database/migrations'));
+            $author = (int) db()->pdo()->query('SELECT id FROM users ORDER BY id LIMIT 1')->fetchColumn();
+            if ($author < 1) {
+                $email = strtolower(trim((string) ($argument ?: getenv('DIZGE_ADMIN_EMAIL')))); $password = (string) (getenv('DIZGE_ADMIN_PASSWORD') ?: '');
+                if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($password) < 12) throw new InvalidArgumentException('First install requires admin email plus DIZGE_ADMIN_PASSWORD (at least 12 chars).');
+                db()->pdo()->prepare('INSERT INTO users (email, password_hash, role, created_at) VALUES (?, ?, ?, ?)')->execute([$email, password_hash($password, PASSWORD_DEFAULT), 'admin', gmdate('c')]); $author = (int) db()->pdo()->lastInsertId();
+            }
+            $content = new ContentRepository(db()); foreach ([['Ana Sayfa','ana-sayfa'],['Hakkımızda','hakkimizda'],['Hizmetler','hizmetler'],['İletişim','iletisim']] as [$title,$slug]) if (!$content->slugExists($slug)) $content->create(['type'=>'page','title'=>$title,'slug'=>$slug,'body_html'=>'<p>' . $title . '</p>','author_id'=>$author]);
+            $site = new SiteRepository(db()); if ($site->menu('primary')['items'] === []) $site->replaceMenu('primary', [['kind'=>'url','label'=>'Ana Sayfa','url'=>'/'],['kind'=>'url','label'=>'Hakkımızda','url'=>'/pages/hakkimizda'],['kind'=>'url','label'=>'İletişim','url'=>'/pages/iletisim']]);
+            echo "Install complete. Studio: /studio\n"; break;
+        case 'publish:due':
+            $statement = db()->pdo()->prepare("SELECT id, author_id FROM content_items WHERE status = 'approved' AND scheduled_at IS NOT NULL AND scheduled_at <= ? ORDER BY scheduled_at LIMIT 100"); $statement->execute([gmdate('c')]); $count = 0; $repo = new ContentRepository(db()); foreach ($statement->fetchAll() as $row) { $repo->transition((int) $row['id'], 'published', (int) $row['author_id'], 'Scheduled publication.'); $count++; } echo "Published {$count} scheduled item(s).\n"; break;
         case 'route:list':
             foreach (app()->routes() as $route) printf("%-6s %s\n", $route['method'], $route['pattern']); break;
         case 'assets:check':
@@ -230,6 +246,26 @@ try {
             $subject = (string) ($argv[2] ?? ''); $name = (string) ($argv[3] ?? ''); $abilities = isset($argv[4]) ? explode(',', $argv[4]) : ['*'];
             if ($subject === '' || $name === '') throw new InvalidArgumentException('Usage: token:issue subject name [ability,...]');
             $issued = app()->container()->get(ApiTokenStore::class)->issue($subject, $name, $abilities); echo "Token (shown once): {$issued['token']}\n"; break;
+        case 'plugin:list':
+            $extensions = app()->container()->get(ExtensionRegistry::class);
+            foreach ($extensions->plugins() as $plugin) printf("%-24s %-10s %s\n", $plugin->id(), in_array($plugin->id(), $extensions->enabledPluginIds(), true) ? 'enabled' : 'disabled', $plugin->name());
+            break;
+        case 'plugin:enable':
+            app()->container()->get(ExtensionRegistry::class)->enablePlugin((string) $argument);
+            echo "Enabled plugin {$argument}. Restart the request process to boot it.\n";
+            break;
+        case 'plugin:disable':
+            app()->container()->get(ExtensionRegistry::class)->disablePlugin((string) $argument);
+            echo "Disabled plugin {$argument}.\n";
+            break;
+        case 'theme:list':
+            $extensions = app()->container()->get(ExtensionRegistry::class);
+            foreach ($extensions->themes() as $theme) printf("%-24s %-10s %s\n", $theme->id(), $theme->id() === $extensions->activeThemeId() ? 'active' : 'available', $theme->name());
+            break;
+        case 'theme:use':
+            app()->container()->get(ExtensionRegistry::class)->useTheme((string) $argument);
+            echo "Selected theme {$argument}.\n";
+            break;
         default: usage(1);
     }
 } catch (Throwable $exception) { fwrite(STDERR, '[dizge] ' . $exception->getMessage() . "\n"); exit(1); }

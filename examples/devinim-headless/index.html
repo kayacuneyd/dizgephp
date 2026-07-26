@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="DizgeCMS headless starter">
+  <title>DizgeCMS Headless Starter</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@kayacuneyd/ckcss@latest/dist/ckcss.min.css">
+  <style>body{max-width:72rem;margin:auto;padding:1.5rem}.site-nav{display:flex;gap:1rem;flex-wrap:wrap}.content{max-width:48rem;margin-block:2rem}.muted{color:#667085}</style>
+  <script type="module" src="/assets/devinim/modules/dv-search.js"></script>
+  <script type="module" src="/assets/devinim/modules/dv-state.js"></script>
+</head>
+<body data-api-base="">
+  <header><a href="#/" id="brand">DizgeCMS</a><nav class="site-nav" id="menu" aria-label="Ana menü"></nav><form id="search-form"><label>İçerikte ara <input id="search-query" type="search" name="q"></label><button>Ara</button></form></header>
+  <main class="content"><dv-state id="state" data-state="loading" data-loading="Yükleniyor…" data-empty="İçerik bulunamadı." data-error="İçerik alınamadı."></dv-state><section id="app" hidden></section></main>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
