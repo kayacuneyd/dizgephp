@@ -1,0 +1,10 @@
+<?php
+declare(strict_types=1);
+require dirname(__DIR__) . '/dizge.php';
+use Dizge\Cms\PreviewTokenStore; use Dizge\Cms\PublicCors; use Dizge\Data\Database; use Dizge\Data\Migrator; use Dizge\Http\Request; use Dizge\Http\Response;
+function hp_expect(bool $v,string $m):void{if(!$v)throw new RuntimeException($m);}
+$db=new Database(new PDO('sqlite::memory:')); (new Migrator($db))->migrate(Migrator::load(dirname(__DIR__).'/database/migrations'));
+$db->pdo()->prepare('INSERT INTO users (email,password_hash,role,created_at) VALUES (?,?,?,?)')->execute(['a@test','x','admin',gmdate('c')]);
+$db->pdo()->prepare('INSERT INTO content_items (type,title,slug,body_html,meta_description,status,author_id,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)')->execute(['page','Draft','draft','<p>x</p>','','draft',1,gmdate('c'),gmdate('c')]);
+$store=new PreviewTokenStore($db,'test-secret'); $issued=$store->issue(1,1,60); hp_expect($store->contentId($issued['token'])===1,'Valid preview token must resolve its bound content.'); hp_expect($store->contentId(str_repeat('a',64))===null,'Unknown token must not resolve.'); $store->revoke($issued['token']); hp_expect($store->contentId($issued['token'])===null,'Revoked token must not resolve.');
+putenv('DIZGECMS_PUBLIC_ORIGINS=https://frontend.example.test'); $cors=PublicCors::fromEnvironment(); $allowed=$cors->handle(new Request('GET','/api/v1/pages',[],[],['origin'=>'https://frontend.example.test']),fn(Request $r):Response=>Response::api(['ok'=>true])); hp_expect($allowed->header('Access-Control-Allow-Origin')==='https://frontend.example.test'&&$allowed->header('Access-Control-Allow-Credentials')===null,'Only allowlisted public origin may receive non-credentialed CORS.'); $denied=$cors->handle(new Request('GET','/api/v1/pages',[],[],['origin'=>'https://evil.example']),fn(Request $r):Response=>Response::api(['ok'=>true])); hp_expect($denied->header('Access-Control-Allow-Origin')===null,'Unknown origins must not receive CORS.'); putenv('DIZGECMS_PUBLIC_ORIGINS'); echo "DizgeCMS headless preview security tests passed.\n";

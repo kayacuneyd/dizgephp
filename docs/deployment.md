@@ -84,6 +84,22 @@ cannot reach an external CDN, or that need every asset served from the same orig
 
 ## Database, jobs and backups
 
+## Staging and controlled release
+
+Use a separate checkout and database for staging; never point staging at the production
+storage/app.sqlite. Set a staging DIZGECMS_SITE_URL, run migrations against the staging database,
+and verify product paths, API problem responses, Studio login, theme assets and WXR dry-run before
+release.
+
+For production:
+
+1. Run bin/dizge verify and bin/dizge benchmark --check on the reviewed checkout.
+2. Deploy the reviewed checkout to the existing vhost root.
+3. Run bin/cms-upgrade --yes; it snapshots SQLite before applying pending migrations.
+4. Run the launch verification checklist.
+5. Roll back by restoring the snapshot with bin/cms-restore ... --force and restoring the prior
+   reviewed checkout if application files changed.
+
 SQLite defaults to `storage/app.sqlite`; its connection enables foreign keys, WAL and a busy timeout.
 Run migrations through `bin/dizge migrate up`. Take a backup before production migrations.
 

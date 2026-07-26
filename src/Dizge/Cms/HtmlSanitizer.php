@@ -15,7 +15,7 @@ final class HtmlSanitizer
     private const TAGS = [
         'p' => true, 'h2' => true, 'h3' => true, 'strong' => true, 'em' => true,
         'a' => true, 'ul' => true, 'ol' => true, 'li' => true, 'blockquote' => true,
-        'pre' => true, 'code' => true, 'br' => true, 'img' => true,
+        'pre' => true, 'code' => true, 'br' => true, 'hr' => true, 'img' => true,
     ];
 
     public function sanitize(string $html): string
@@ -43,10 +43,12 @@ final class HtmlSanitizer
         $children = '';
         foreach ($node->childNodes as $child) $children .= $this->render($child);
         if (!isset(self::TAGS[$tag])) return $children;
-        if ($tag === 'br') return '<br>';
+        if ($tag === 'br' || $tag === 'hr') return '<' . $tag . '>';
         if ($tag === 'img') {
             $src = trim($node->getAttribute('src'));
-            if (preg_match('#^/demo/media/[1-9][0-9]*$#', $src) !== 1) return '';
+            // Media is served through the CMS-owned route. Keep the legacy demo alias readable
+            // for existing content, but never allow arbitrary external or data URLs here.
+            if (preg_match('#^/(?:media|demo/media)/[1-9][0-9]*$#', $src) !== 1) return '';
             $alt = htmlspecialchars($node->getAttribute('alt'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
             return '<img src="' . $src . '" alt="' . $alt . '">';
         }

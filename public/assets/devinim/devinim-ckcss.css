@@ -19,7 +19,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .dv-cart li > span:first-child { flex: 1 1 12rem; font-weight: 600; }
 .dv-cart output { min-inline-size: 2ch; text-align: center; }
 .dv-toast-stack { position: fixed; z-index: 20; right: 1rem; bottom: 1rem; display: grid; gap: .5rem; max-inline-size: min(24rem, calc(100vw - 2rem)); }
-.dv-toast-stack output { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .75rem 1rem; border-radius: .5rem; background: var(--ck-color-text); color: var(--ck-color-surface-raised); box-shadow: 0 .5rem 1.5rem color-mix(in srgb, var(--ck-color-text) 20%, transparent); }
+.dv-toast-stack output { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .75rem 1rem; border-radius: .5rem; background: var(--ck-color-text); color: var(--ck-color-surface-raised); box-shadow: 0 .5rem 1.5rem color-mix(in srgb, var(--ck-color-text) 20%, transparent); transition: opacity .18s ease, transform .18s ease; }
+.dv-toast-stack output[data-leaving] { opacity: 0; transform: translateX(.75rem); }
 .dv-toast-stack button { padding: 0; border: 0; background: transparent; color: inherit; font-size: 1.2rem; }
 .dv-data-table { overflow-x: auto; }
 .dv-data-table table { inline-size: 100%; border-collapse: collapse; }
@@ -28,15 +29,31 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .dv-state[hidden] { display: none; }
 
 /* Dialog and single status components are fixed overlays, not document-flow content. */
-.dv-modal-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: var(--ck-space-4); background: color-mix(in srgb, var(--ck-color-text) 68%, transparent); }
+.dv-modal-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: var(--ck-space-4); background: color-mix(in srgb, var(--ck-color-text) 68%, transparent); transition: opacity .18s ease; }
 .dv-modal-backdrop[hidden] { display: none; }
+.dv-modal-backdrop[data-leaving] { opacity: 0; }
 .dv-modal { inline-size: min(36rem, 100%); max-block-size: min(90vh, 42rem); overflow: auto; padding: 0; border: 1px solid var(--ck-color-border); border-radius: var(--ck-radius-md); background: var(--ck-color-surface-raised); color: var(--ck-color-text); box-shadow: 0 1.5rem 4rem color-mix(in srgb, var(--ck-color-text) 28%, transparent); }
 .dv-modal header { display: flex; align-items: center; justify-content: space-between; gap: var(--ck-space-3); padding: var(--ck-space-4); border-block-end: 1px solid var(--ck-color-border); }
 .dv-modal header h2 { margin: 0; }
 .dv-modal header button { padding: .2rem .55rem; border: 0; background: transparent; color: var(--ck-color-text); font-size: 1.4rem; cursor: pointer; }
 .dv-modal-content { padding: var(--ck-space-4); }
-.dv-toast { position: fixed; inset-inline-end: var(--ck-space-4); inset-block-end: var(--ck-space-4); z-index: 110; max-inline-size: min(26rem, calc(100vw - 2rem)); padding: var(--ck-space-3) var(--ck-space-4); border: 1px solid var(--ck-color-border); border-radius: var(--ck-radius-md); background: var(--ck-color-text); color: var(--ck-color-surface-raised); box-shadow: 0 .75rem 2rem color-mix(in srgb, var(--ck-color-text) 25%, transparent); }
+.dv-toast { position: fixed; inset-inline-end: var(--ck-space-4); inset-block-end: var(--ck-space-4); z-index: 110; max-inline-size: min(26rem, calc(100vw - 2rem)); padding: var(--ck-space-3) var(--ck-space-4); border: 1px solid var(--ck-color-border); border-radius: var(--ck-radius-md); background: var(--ck-color-text); color: var(--ck-color-surface-raised); box-shadow: 0 .75rem 2rem color-mix(in srgb, var(--ck-color-text) 25%, transparent); transition: opacity .18s ease, transform .18s ease; }
 .dv-toast[hidden] { display: none; }
+.dv-toast[data-leaving] { opacity: 0; transform: translateY(.5rem); }
+
+/* Disclosure panel fade (ADR-0018) — deliberately opacity-only: an accurate block-size
+   expand/collapse needs JS-measured scrollHeight, out of scope for this minimal primitive. */
+.dv-disclosure-panel { transition: opacity .18s ease; }
+.dv-disclosure-panel[data-leaving] { opacity: 0; }
+
+/* Respect reduced-motion preferences (WCAG 2.3.3) — every transition this reference CSS adds
+   for dv-modal/dv-toast/dv-toast-stack/dv-disclosure (ADR-0018) collapses to an instant
+   show/hide, matched by the primitive's timeout fallback on the JS side. */
+@media (prefers-reduced-motion: reduce) {
+  .dv-modal-backdrop, .dv-toast, .dv-toast-stack output, .dv-disclosure-panel {
+    transition: none;
+  }
+}
 
 /* CKCSS's two-column primitive collapses at the same point as the rest of the site. */
 @media (max-width: 48rem) {

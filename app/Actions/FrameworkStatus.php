@@ -15,7 +15,7 @@ final class FrameworkStatus
     public function handle(): array
     {
         return [
-            'name' => (string) $this->application->config()->get('app.name', 'DizgePHP'),
+            'name' => (string) $this->application->config()->get('app.name', 'DizgeCMS'),
             'environment' => (string) $this->application->config()->get('app.environment', 'production'),
             'modules' => (array) $this->application->config()->get('modules', []),
         ];

@@ -1,0 +1,8 @@
+/* Starter theme contract: presentation stays token-led and JavaScript-free. */
+:root {
+  --dizge-theme-content-measure: 68rem;
+}
+
+.dc-prose {
+  max-inline-size: var(--dizge-theme-content-measure);
+}

@@ -9,7 +9,7 @@ $command = $argv[1] ?? '';
 $email = strtolower(trim((string) ($argv[2] ?? '')));
 $password = getenv('DIZGE_ADMIN_PASSWORD');
 if ($command !== 'create' || !filter_var($email, FILTER_VALIDATE_EMAIL) || $password === false || strlen($password) < 12) {
-    throw new InvalidArgumentException('Usage: DIZGE_ADMIN_PASSWORD="at-least-12-chars" bin/cms-admin create admin@example.com');
+    throw new InvalidArgumentException('Usage: export DIZGE_ADMIN_PASSWORD; bin/cms-admin create admin@example.com');
 }
 
 $statement = db()->pdo()->prepare('INSERT INTO users (email, password_hash, role, created_at) VALUES (?, ?, ?, ?)');

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 return [
-    'name' => 'DizgePHP',
+    'name' => 'DizgeCMS',
     'environment' => getenv('DIZGE_ENV') ?: 'production',
     'api_prefix' => '/api/v1',
     // Global default rate limit applied to every route via Application's global middleware

@@ -12,6 +12,7 @@ component('dv-rich-editor', {
         <button type="button" data-command="italic" on:click="format"><em>İtalik</em></button>
         <button type="button" data-command="insertUnorderedList" on:click="format">Liste</button>
         <button type="button" data-command="formatBlock" data-argument="blockquote" on:click="format">Alıntı</button>
+        <button type="button" data-command="insertHorizontalRule" on:click="format">Ayırıcı</button>
         <button type="button" data-command="formatBlock" data-argument="pre" on:click="format">Kod</button>
         <button type="button" on:click="link">Link</button>
         <button type="button" on:click="image">Görsel</button>
@@ -38,8 +39,8 @@ component('dv-rich-editor', {
     },
     image(event) {
       event.preventDefault();
-      const src = window.prompt('Studio’dan yüklenmiş /demo/media/ID URL’sini girin');
-      if (!src || !/^\/demo\/media\/[1-9][0-9]*$/.test(src)) return;
+      const src = window.prompt('Studio’dan yüklenmiş /media/ID URL’sini girin');
+      if (!src || !/^\/media\/[1-9][0-9]*$/.test(src)) return;
       this.querySelector('.dc-editor-canvas').focus();
       document.execCommand('insertImage', false, src);
       this.sync();
